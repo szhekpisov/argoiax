@@ -1,0 +1,93 @@
+name: 'Ancaeus'
+description: 'Detect and update outdated Helm chart versions in ArgoCD manifests'
+branding:
+  icon: 'refresh-cw'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'Command to run (scan or update)'
+    required: false
+    default: 'update'
+  config:
+    description: 'Path to ancaeus.yaml config file'
+    required: false
+    default: 'ancaeus.yaml'
+  dir:
+    description: 'Directory to scan for ArgoCD manifests'
+    required: false
+    default: '.'
+  chart:
+    description: 'Only check/update a specific chart name'
+    required: false
+  allow-major:
+    description: 'Include major version updates'
+    required: false
+    default: 'false'
+  max-prs:
+    description: 'Maximum number of PRs to create'
+    required: false
+    default: '10'
+  github-token:
+    description: 'GitHub token for creating PRs and API access'
+    required: false
+    default: ${{ github.token }}
+  log-level:
+    description: 'Log level (debug, info, warn, error)'
+    required: false
+    default: 'info'
+  version:
+    description: 'ancaeus version to use (default: latest)'
+    required: false
+    default: 'latest'
+
+outputs:
+  updates-found:
+    description: 'Number of updates found'
+    value: ${{ steps.run.outputs.updates-found }}
+  prs-created:
+    description: 'Number of PRs created'
+    value: ${{ steps.run.outputs.prs-created }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install ancaeus
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/vertrost/ancaeus/releases/latest \
+            | grep "browser_download_url.*linux_amd64.tar.gz" \
+            | cut -d '"' -f 4)
+        else
+          DOWNLOAD_URL="https://github.com/vertrost/ancaeus/releases/download/v${VERSION}/ancaeus_${VERSION}_linux_amd64.tar.gz"
+        fi
+        curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin ancaeus
+        chmod +x /usr/local/bin/ancaeus
+
+    - name: Run ancaeus
+      id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        ARGS="${{ inputs.command }}"
+        ARGS="$ARGS --config ${{ inputs.config }}"
+        ARGS="$ARGS --dir ${{ inputs.dir }}"
+        ARGS="$ARGS --log-level ${{ inputs.log-level }}"
+
+        if [ "${{ inputs.command }}" = "update" ]; then
+          ARGS="$ARGS --github-token ${{ inputs.github-token }}"
+          ARGS="$ARGS --repo ${{ github.repository }}"
+          ARGS="$ARGS --max-prs ${{ inputs.max-prs }}"
+          if [ "${{ inputs.allow-major }}" = "true" ]; then
+            ARGS="$ARGS --allow-major"
+          fi
+        fi
+
+        if [ -n "${{ inputs.chart }}" ]; then
+          ARGS="$ARGS --chart ${{ inputs.chart }}"
+        fi
+
+        ancaeus $ARGS

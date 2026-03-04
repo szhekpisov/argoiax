@@ -1,0 +1,34 @@
+version: 1
+scanDirs: [apps/, clusters/production/]
+ignore: ["**/test/**"]
+
+charts:
+  cert-manager:
+    versionConstraint: ">=1.0.0, <2.0.0"
+  "https://charts.bitnami.com/bitnami#postgresql":
+    githubRepo: "bitnami/charts"
+    tagPattern: "postgresql-{{.Version}}"
+
+settings:
+  prStrategy: "per-chart"          # per-chart | per-file | batch
+  labels: [ancaeus, dependencies]
+  baseBranch: main
+  branchTemplate: "ancaeus/{{.ChartName}}-{{.NewVersion}}"
+  titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
+  maxOpenPRs: 10
+  autoMergePatch: true
+
+auth:
+  helmRepos:
+    - url: "https://private.example.com"
+      username: "${HELM_USER}"
+      password: "${HELM_PASS}"
+  ociRegistries:
+    - registry: "123456789.dkr.ecr.us-east-1.amazonaws.com"
+      provider: ecr
+
+releaseNotes:
+  enabled: true
+  maxLength: 10000
+  includeIntermediate: true
+  sources: [github-releases, artifacthub, changelog]

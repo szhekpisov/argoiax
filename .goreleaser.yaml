@@ -1,0 +1,68 @@
+version: 2
+
+project_name: ancaeus
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/vertrost/ancaeus/cmd.Version={{.Version}}
+      - -X github.com/vertrost/ancaeus/cmd.Commit={{.Commit}}
+      - -X github.com/vertrost/ancaeus/cmd.Date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+
+dockers:
+  - image_templates:
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
+    goarch: amd64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "ghcr.io/vertrost/ancaeus:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/vertrost/ancaeus:latest"
+    image_templates:
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
+      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"

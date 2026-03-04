@@ -1,0 +1,167 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+// PR strategy constants.
+const (
+	StrategyPerChart = "per-chart"
+	StrategyPerFile  = "per-file"
+	StrategyBatch    = "batch"
+)
+
+// Release notes source constants.
+const (
+	SourceGitHubReleases = "github-releases"
+	SourceArtifactHub    = "artifacthub"
+	SourceChangelog      = "changelog"
+)
+
+type Config struct {
+	Version  int               `yaml:"version"`
+	ScanDirs []string          `yaml:"scanDirs"`
+	Ignore   []string          `yaml:"ignore"`
+	Charts   map[string]Chart  `yaml:"charts"`
+	Settings Settings          `yaml:"settings"`
+	Auth     Auth              `yaml:"auth"`
+	Release  ReleaseNotesConfig `yaml:"releaseNotes"`
+}
+
+type Chart struct {
+	VersionConstraint string `yaml:"versionConstraint"`
+	GithubRepo        string `yaml:"githubRepo"`
+	TagPattern        string `yaml:"tagPattern"`
+}
+
+type Settings struct {
+	PRStrategy     string   `yaml:"prStrategy"`
+	Labels         []string `yaml:"labels"`
+	BaseBranch     string   `yaml:"baseBranch"`
+	BranchTemplate string   `yaml:"branchTemplate"`
+	TitleTemplate  string   `yaml:"titleTemplate"`
+	MaxOpenPRs     int      `yaml:"maxOpenPRs"`
+	AutoMergePatch bool     `yaml:"autoMergePatch"`
+}
+
+type Auth struct {
+	HelmRepos     []HelmRepoAuth `yaml:"helmRepos"`
+	OCIRegistries []OCIAuth      `yaml:"ociRegistries"`
+}
+
+type HelmRepoAuth struct {
+	URL      string `yaml:"url"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+type OCIAuth struct {
+	Registry string `yaml:"registry"`
+	Provider string `yaml:"provider"`
+}
+
+type ReleaseNotesConfig struct {
+	Enabled             bool     `yaml:"enabled"`
+	MaxLength           int      `yaml:"maxLength"`
+	IncludeIntermediate bool     `yaml:"includeIntermediate"`
+	Sources             []string `yaml:"sources"`
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		Version:  1,
+		ScanDirs: []string{"."},
+		Settings: Settings{
+			PRStrategy:     StrategyPerChart,
+			Labels:         []string{"ancaeus", "dependencies"},
+			BaseBranch:     "main",
+			BranchTemplate: "ancaeus/{{.ChartName}}-{{.NewVersion}}",
+			TitleTemplate:  "chore(deps): update {{.ChartName}} to {{.NewVersion}}",
+			MaxOpenPRs:     10,
+			AutoMergePatch: false,
+		},
+		Release: ReleaseNotesConfig{
+			Enabled:             true,
+			MaxLength:           10000,
+			IncludeIntermediate: true,
+			Sources:             []string{SourceGitHubReleases, SourceArtifactHub, SourceChangelog},
+		},
+	}
+}
+
+func Load(path string) (*Config, error) {
+	cfg := DefaultConfig()
+
+	if path == "" {
+		path = "ancaeus.yaml"
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) && path == "ancaeus.yaml" {
+			return cfg, nil
+		}
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+
+	// Expand environment variables in config
+	expanded := os.ExpandEnv(string(data))
+
+	if err := yaml.Unmarshal([]byte(expanded), cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+var validStrategies = map[string]bool{StrategyPerChart: true, StrategyPerFile: true, StrategyBatch: true}
+var validSources = map[string]bool{SourceGitHubReleases: true, SourceArtifactHub: true, SourceChangelog: true}
+
+func (c *Config) Validate() error {
+	if c.Version != 0 && c.Version != 1 {
+		return fmt.Errorf("unsupported config version: %d", c.Version)
+	}
+
+	if c.Settings.PRStrategy != "" && !validStrategies[c.Settings.PRStrategy] {
+		return fmt.Errorf("invalid prStrategy %q (must be %s, %s, or %s)", c.Settings.PRStrategy, StrategyPerChart, StrategyPerFile, StrategyBatch)
+	}
+
+	for _, src := range c.Release.Sources {
+		if !validSources[src] {
+			return fmt.Errorf("invalid release notes source %q", src)
+		}
+	}
+
+	return nil
+}
+
+// LookupChart finds chart config by name or by "repoURL#chartName" key.
+func (c *Config) LookupChart(name, repoURL string) *Chart {
+	if ch, ok := c.Charts[name]; ok {
+		return &ch
+	}
+	key := repoURL + "#" + name
+	if ch, ok := c.Charts[key]; ok {
+		return &ch
+	}
+	return nil
+}
+
+// FindRepoAuth returns auth config for a given repo URL.
+func (c *Config) FindRepoAuth(repoURL string) *HelmRepoAuth {
+	for i := range c.Auth.HelmRepos {
+		if strings.HasPrefix(repoURL, c.Auth.HelmRepos[i].URL) {
+			return &c.Auth.HelmRepos[i]
+		}
+	}
+	return nil
+}
+
