@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
-	"github.com/vertrost/ancaeus/pkg/semver"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/semver"
 )
 
 func TestHelmHTTPRegistry_ListVersions(t *testing.T) {

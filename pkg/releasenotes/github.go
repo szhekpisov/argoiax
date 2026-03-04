@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/registry"
 )
 
 // GitHubFetcher retrieves release notes from GitHub Releases API.

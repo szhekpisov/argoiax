@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
-	"github.com/vertrost/ancaeus/pkg/registry"
-	"github.com/vertrost/ancaeus/pkg/semver"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/semver"
 )
 
 // scanRefs resolves scan directories, walks manifests, and optionally filters by chart name.

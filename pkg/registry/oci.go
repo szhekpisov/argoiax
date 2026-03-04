@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
 )
 
 // OCIRegistry implements Registry for OCI-based Helm registries.

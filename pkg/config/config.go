@@ -77,9 +77,9 @@ func DefaultConfig() *Config {
 		ScanDirs: []string{"."},
 		Settings: Settings{
 			PRStrategy:     StrategyPerChart,
-			Labels:         []string{"ancaeus", "dependencies"},
+			Labels:         []string{"argoiax", "dependencies"},
 			BaseBranch:     "main",
-			BranchTemplate: "ancaeus/{{.ChartName}}-{{.NewVersion}}",
+			BranchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}",
 			TitleTemplate:  "chore(deps): update {{.ChartName}} to {{.NewVersion}}",
 			MaxOpenPRs:     10,
 			AutoMergePatch: false,
@@ -97,12 +97,12 @@ func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()
 
 	if path == "" {
-		path = "ancaeus.yaml"
+		path = "argoiax.yaml"
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) && path == "ancaeus.yaml" {
+		if os.IsNotExist(err) && path == "argoiax.yaml" {
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("reading config: %w", err)

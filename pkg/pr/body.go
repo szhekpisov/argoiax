@@ -49,14 +49,14 @@ func RenderPRBody(info UpdateInfo) string {
 	}
 
 	// Footer
-	b.WriteString("ancaeus will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a recheck by commenting `@ancaeus recheck`.\n")
+	b.WriteString("argoiax will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a recheck by commenting `@argoiax recheck`.\n")
 	b.WriteString("\n---\n\n")
-	b.WriteString("<details>\n<summary>ancaeus commands and options</summary>\n<br />\n\n")
-	b.WriteString("You can trigger ancaeus actions by commenting on this PR:\n")
-	b.WriteString("- `@ancaeus recheck` will re-run the version check for this chart\n")
-	b.WriteString("- `@ancaeus ignore this major version` will close this PR and stop creating PRs for this major version\n")
-	b.WriteString("- `@ancaeus ignore this minor version` will close this PR and stop creating PRs for this minor version\n")
-	b.WriteString("- `@ancaeus ignore this chart` will close this PR and stop creating PRs for this chart\n")
+	b.WriteString("<details>\n<summary>argoiax commands and options</summary>\n<br />\n\n")
+	b.WriteString("You can trigger argoiax actions by commenting on this PR:\n")
+	b.WriteString("- `@argoiax recheck` will re-run the version check for this chart\n")
+	b.WriteString("- `@argoiax ignore this major version` will close this PR and stop creating PRs for this major version\n")
+	b.WriteString("- `@argoiax ignore this minor version` will close this PR and stop creating PRs for this minor version\n")
+	b.WriteString("- `@argoiax ignore this chart` will close this PR and stop creating PRs for this chart\n")
 	b.WriteString("\n</details>\n")
 
 	return b.String()

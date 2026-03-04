@@ -3,7 +3,7 @@ package pr
 import (
 	"context"
 
-	"github.com/vertrost/ancaeus/pkg/releasenotes"
+	"github.com/vertrost/argoiax/pkg/releasenotes"
 )
 
 // UpdateInfo contains all information needed to create a PR for a chart update.

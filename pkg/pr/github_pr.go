@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v68/github"
-	"github.com/vertrost/ancaeus/pkg/config"
+	"github.com/vertrost/argoiax/pkg/config"
 )
 
 // GitHubCreator implements Creator using the GitHub API.
@@ -67,8 +67,8 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 		SHA:     existingFile.SHA,
 		Branch:  &branch,
 		Author: &github.CommitAuthor{
-			Name:  github.Ptr("ancaeus"),
-			Email: github.Ptr("ancaeus[bot]@users.noreply.github.com"),
+			Name:  github.Ptr("argoiax"),
+			Email: github.Ptr("argoiax[bot]@users.noreply.github.com"),
 			Date:  &github.Timestamp{Time: time.Now()},
 		},
 	})

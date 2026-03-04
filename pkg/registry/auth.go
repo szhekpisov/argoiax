@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/vertrost/ancaeus/pkg/config"
+	"github.com/vertrost/argoiax/pkg/config"
 )
 
 const defaultHTTPTimeout = 60 * time.Second

@@ -11,9 +11,9 @@ charts:
 
 settings:
   prStrategy: "per-chart"          # per-chart | per-file | batch
-  labels: [ancaeus, dependencies]
+  labels: [argoiax, dependencies]
   baseBranch: main
-  branchTemplate: "ancaeus/{{.ChartName}}-{{.NewVersion}}"
+  branchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}"
   titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
   maxOpenPRs: 10
   autoMergePatch: true

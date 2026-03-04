@@ -1,4 +1,4 @@
-# Ancaeus Architecture
+# Argoiax Architecture
 
 ## Command Structure
 

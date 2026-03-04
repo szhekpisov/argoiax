@@ -1,6 +1,6 @@
 version: 2
 
-project_name: ancaeus
+project_name: argoiax
 
 before:
   hooks:
@@ -18,9 +18,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/vertrost/ancaeus/cmd.Version={{.Version}}
-      - -X github.com/vertrost/ancaeus/cmd.Commit={{.Commit}}
-      - -X github.com/vertrost/ancaeus/cmd.Date={{.Date}}
+      - -X github.com/vertrost/argoiax/cmd.Version={{.Version}}
+      - -X github.com/vertrost/argoiax/cmd.Commit={{.Commit}}
+      - -X github.com/vertrost/argoiax/cmd.Date={{.Date}}
 
 archives:
   - format: tar.gz
@@ -43,14 +43,14 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
     goarch: amd64
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
   - image_templates:
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"
     goarch: arm64
     dockerfile: Dockerfile
     use: buildx
@@ -58,11 +58,11 @@ dockers:
       - "--platform=linux/arm64"
 
 docker_manifests:
-  - name_template: "ghcr.io/vertrost/ancaeus:{{ .Version }}"
+  - name_template: "ghcr.io/vertrost/argoiax:{{ .Version }}"
     image_templates:
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/vertrost/ancaeus:latest"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/vertrost/argoiax:latest"
     image_templates:
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-amd64"
-      - "ghcr.io/vertrost/ancaeus:{{ .Version }}-arm64"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
+      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"

@@ -1,17 +1,17 @@
-# ancaeus
+# argoiax
 
 Automated Helm chart dependency updates for ArgoCD — named after the mythological helmsman of the Argo.
 
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![CI](https://github.com/vertrost/ancaeus/actions/workflows/ci.yml/badge.svg)](https://github.com/vertrost/ancaeus/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/vertrost/ancaeus)](https://github.com/vertrost/ancaeus/releases)
+[![CI](https://github.com/vertrost/argoiax/actions/workflows/ci.yml/badge.svg)](https://github.com/vertrost/argoiax/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/vertrost/argoiax)](https://github.com/vertrost/argoiax/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Problem
 
 ArgoCD Application manifests pin Helm chart versions in YAML files. When upstream charts release new versions, these pinned versions become stale. Dependabot doesn't support ArgoCD CRDs, leaving teams without automated dependency updates for their GitOps repositories.
 
-**ancaeus** fills this gap by scanning your GitOps repo, detecting outdated charts, fetching release notes, and opening Dependabot-style PRs with full context.
+**argoiax** fills this gap by scanning your GitOps repo, detecting outdated charts, fetching release notes, and opening Dependabot-style PRs with full context.
 
 ## Features
 
@@ -29,22 +29,22 @@ ArgoCD Application manifests pin Helm chart versions in YAML files. When upstrea
 ### Install
 
 ```bash
-go install github.com/vertrost/ancaeus@latest
+go install github.com/vertrost/argoiax@latest
 ```
 
-Or download a binary from [Releases](https://github.com/vertrost/ancaeus/releases).
+Or download a binary from [Releases](https://github.com/vertrost/argoiax/releases).
 
 ### Scan for outdated charts
 
 ```bash
-ancaeus scan --dir apps/
+argoiax scan --dir apps/
 ```
 
 ### Create update PRs
 
 ```bash
 export GITHUB_TOKEN=ghp_...
-ancaeus update --dir apps/ --repo owner/repo
+argoiax update --dir apps/ --repo owner/repo
 ```
 
 ## CLI reference
@@ -54,7 +54,7 @@ ancaeus update --dir apps/ --repo owner/repo
 Scan for outdated Helm chart versions in ArgoCD manifests.
 
 ```
-ancaeus scan [flags]
+argoiax scan [flags]
 
 Flags:
   -o, --output string     Output format: table, json, markdown (default "table")
@@ -67,7 +67,7 @@ Flags:
 Create PRs for outdated Helm chart versions.
 
 ```
-ancaeus update [flags]
+argoiax update [flags]
 
 Flags:
       --chart string          Only update a specific chart name
@@ -82,13 +82,13 @@ Flags:
 Print the version.
 
 ```
-ancaeus version
+argoiax version
 ```
 
 ### Global flags
 
 ```
-      --config string      Config file (default "ancaeus.yaml")
+      --config string      Config file (default "argoiax.yaml")
       --dir string         Directory to scan (default ".")
       --dry-run            Report changes without modifying files
       --log-level string   Log level: debug, info, warn, error (default "info")
@@ -96,7 +96,7 @@ ancaeus version
 
 ## Configuration
 
-Create an `ancaeus.yaml` file in your repository root:
+Create an `argoiax.yaml` file in your repository root:
 
 ```yaml
 version: 1
@@ -112,9 +112,9 @@ charts:
 
 settings:
   prStrategy: "per-chart"          # per-chart | per-file | batch
-  labels: [ancaeus, dependencies]
+  labels: [argoiax, dependencies]
   baseBranch: main
-  branchTemplate: "ancaeus/{{.ChartName}}-{{.NewVersion}}"
+  branchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}"
   titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
   maxOpenPRs: 10
   autoMergePatch: true
@@ -163,7 +163,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: vertrost/ancaeus@v1
+      - uses: vertrost/argoiax@v1
         with:
           command: update
           dir: apps/
@@ -175,7 +175,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `command` | Command to run (`scan` or `update`) | `update` |
-| `config` | Path to config file | `ancaeus.yaml` |
+| `config` | Path to config file | `argoiax.yaml` |
 | `dir` | Directory to scan | `.` |
 | `chart` | Only check/update a specific chart | |
 | `allow-major` | Include major version updates | `false` |
@@ -187,7 +187,7 @@ jobs:
 ## Docker
 
 ```bash
-docker run --rm ghcr.io/vertrost/ancaeus scan --dir /data
+docker run --rm ghcr.io/vertrost/argoiax scan --dir /data
 ```
 
 ## Supported ArgoCD patterns

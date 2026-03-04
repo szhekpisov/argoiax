@@ -46,7 +46,7 @@ func TestLoad_ExplicitMissing(t *testing.T) {
 
 func TestLoad_ValidConfig(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ancaeus.yaml")
+	cfgPath := filepath.Join(dir, "argoiax.yaml")
 
 	content := `
 version: 1
@@ -95,7 +95,7 @@ releaseNotes:
 
 func TestLoad_ExpandsEnvVars(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ancaeus.yaml")
+	cfgPath := filepath.Join(dir, "argoiax.yaml")
 
 	os.Setenv("TEST_HELM_USER", "myuser")
 	os.Setenv("TEST_HELM_PASS", "mypass")

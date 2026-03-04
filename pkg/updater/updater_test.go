@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vertrost/ancaeus/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/manifest"
 	"gopkg.in/yaml.v3"
 )
 

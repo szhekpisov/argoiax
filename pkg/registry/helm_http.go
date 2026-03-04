@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
 	"golang.org/x/sync/singleflight"
 	"gopkg.in/yaml.v3"
 )

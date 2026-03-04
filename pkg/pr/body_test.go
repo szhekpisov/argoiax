@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vertrost/ancaeus/pkg/releasenotes"
+	"github.com/vertrost/argoiax/pkg/releasenotes"
 )
 
 func TestRenderPRBody_Basic(t *testing.T) {
@@ -24,8 +24,8 @@ func TestRenderPRBody_Basic(t *testing.T) {
 	if strings.Contains(body, "WARNING") {
 		t.Error("did not expect breaking change warning")
 	}
-	if !strings.Contains(body, "@ancaeus recheck") {
-		t.Error("expected ancaeus commands in footer")
+	if !strings.Contains(body, "@argoiax recheck") {
+		t.Error("expected argoiax commands in footer")
 	}
 	if !strings.Contains(body, "---") {
 		t.Error("expected separator before footer")

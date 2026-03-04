@@ -3,8 +3,8 @@ package releasenotes
 import (
 	"strings"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/registry"
 )
 
 // MapChartToRepo determines the GitHub repository for a chart.

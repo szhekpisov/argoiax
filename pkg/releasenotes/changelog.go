@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/registry"
 )
 
 var nextHeaderRe = regexp.MustCompile(`(?m)^#{1,3}\s+\[?v?\d+\.\d+`)

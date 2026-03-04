@@ -8,13 +8,13 @@ import (
 
 	"github.com/google/go-github/v68/github"
 	"github.com/spf13/cobra"
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/output"
-	"github.com/vertrost/ancaeus/pkg/pr"
-	"github.com/vertrost/ancaeus/pkg/registry"
-	"github.com/vertrost/ancaeus/pkg/releasenotes"
-	"github.com/vertrost/ancaeus/pkg/semver"
-	"github.com/vertrost/ancaeus/pkg/updater"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/output"
+	"github.com/vertrost/argoiax/pkg/pr"
+	"github.com/vertrost/argoiax/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/releasenotes"
+	"github.com/vertrost/argoiax/pkg/semver"
+	"github.com/vertrost/argoiax/pkg/updater"
 	"golang.org/x/oauth2"
 )
 

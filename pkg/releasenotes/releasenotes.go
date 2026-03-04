@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/vertrost/ancaeus/pkg/config"
+	"github.com/vertrost/argoiax/pkg/config"
 )
 
 // Notes contains aggregated release notes for a chart update.

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/vertrost/ancaeus/cmd"
+	"github.com/vertrost/argoiax/cmd"
 )
 
 func main() {

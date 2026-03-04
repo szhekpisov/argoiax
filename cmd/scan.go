@@ -8,11 +8,11 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
-	"github.com/vertrost/ancaeus/pkg/output"
-	"github.com/vertrost/ancaeus/pkg/registry"
-	"github.com/vertrost/ancaeus/pkg/semver"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/output"
+	"github.com/vertrost/argoiax/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/semver"
 	"golang.org/x/sync/semaphore"
 )
 

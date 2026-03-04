@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vertrost/ancaeus/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/manifest"
 )
 
 // GitRegistry implements Registry for Git-based sources using the GitHub/GitLab API.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/registry"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/registry"
 )
 
 // ArtifactHubFetcher retrieves release notes from the ArtifactHub API.

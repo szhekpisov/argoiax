@@ -1,4 +1,4 @@
-module github.com/vertrost/ancaeus
+module github.com/vertrost/argoiax
 
 go 1.25.6
 

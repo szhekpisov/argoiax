@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vertrost/ancaeus/pkg/config"
-	"github.com/vertrost/ancaeus/pkg/manifest"
+	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/manifest"
 )
 
 // Registry is the interface for checking chart versions across different repository types.

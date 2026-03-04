@@ -1,5 +1,5 @@
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY ancaeus /usr/local/bin/ancaeus
+COPY argoiax /usr/local/bin/argoiax
 
-ENTRYPOINT ["ancaeus"]
+ENTRYPOINT ["argoiax"]
