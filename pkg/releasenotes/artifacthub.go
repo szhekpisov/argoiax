@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/vertrost/ancaeus/pkg/config"
 	"github.com/vertrost/ancaeus/pkg/registry"
@@ -19,7 +20,7 @@ type ArtifactHubFetcher struct {
 // NewArtifactHubFetcher creates a new ArtifactHubFetcher.
 func NewArtifactHubFetcher() *ArtifactHubFetcher {
 	return &ArtifactHubFetcher{
-		client: http.DefaultClient,
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 

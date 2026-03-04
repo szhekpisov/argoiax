@@ -8,10 +8,6 @@ import (
 
 // LatestStable returns the highest non-prerelease version, optionally constrained.
 func LatestStable(versions []string, constraint string) (string, error) {
-	return latestFiltered(versions, constraint, true)
-}
-
-func latestFiltered(versions []string, constraint string, skipPreRelease bool) (string, error) {
 	var c *sv.Constraints
 	if constraint != "" {
 		var err error
@@ -27,7 +23,7 @@ func latestFiltered(versions []string, constraint string, skipPreRelease bool) (
 		if err != nil {
 			continue
 		}
-		if skipPreRelease && ver.Prerelease() != "" {
+		if ver.Prerelease() != "" {
 			continue
 		}
 		if c != nil && !c.Check(ver) {

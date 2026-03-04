@@ -16,10 +16,10 @@ type GitRegistry struct {
 	client *http.Client
 }
 
-// NewGitRegistry creates a new GitRegistry.
-func NewGitRegistry() *GitRegistry {
+// NewGitRegistry creates a new GitRegistry with the given token.
+func NewGitRegistry(token string) *GitRegistry {
 	return &GitRegistry{
-		client: NewTokenClient(GetGitHubToken()),
+		client: NewTokenClient(token),
 	}
 }
 

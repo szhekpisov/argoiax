@@ -88,7 +88,8 @@ func (f *ChangelogFetcher) tryChangelogFile(ctx context.Context, repo GitHubRepo
 		return "", nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	const maxChangelogSize = 5 * 1024 * 1024 // 5 MB
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxChangelogSize))
 	if err != nil {
 		return "", err
 	}

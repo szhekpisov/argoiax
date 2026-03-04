@@ -54,14 +54,22 @@ runs:
   steps:
     - name: Install ancaeus
       shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        VERSION="${{ inputs.version }}"
-        if [ "$VERSION" = "latest" ]; then
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+
+        if [ "$INPUT_VERSION" = "latest" ]; then
           DOWNLOAD_URL=$(curl -s https://api.github.com/repos/vertrost/ancaeus/releases/latest \
-            | grep "browser_download_url.*linux_amd64.tar.gz" \
+            | grep "browser_download_url.*${OS}_${ARCH}.tar.gz" \
             | cut -d '"' -f 4)
         else
-          DOWNLOAD_URL="https://github.com/vertrost/ancaeus/releases/download/v${VERSION}/ancaeus_${VERSION}_linux_amd64.tar.gz"
+          DOWNLOAD_URL="https://github.com/vertrost/ancaeus/releases/download/v${INPUT_VERSION}/ancaeus_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
         fi
         curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin ancaeus
         chmod +x /usr/local/bin/ancaeus
@@ -71,23 +79,36 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_DIR: ${{ inputs.dir }}
+        INPUT_LOG_LEVEL: ${{ inputs.log-level }}
+        INPUT_ALLOW_MAJOR: ${{ inputs.allow-major }}
+        INPUT_MAX_PRS: ${{ inputs.max-prs }}
+        INPUT_CHART: ${{ inputs.chart }}
+        INPUT_REPO: ${{ github.repository }}
       run: |
-        ARGS="${{ inputs.command }}"
-        ARGS="$ARGS --config ${{ inputs.config }}"
-        ARGS="$ARGS --dir ${{ inputs.dir }}"
-        ARGS="$ARGS --log-level ${{ inputs.log-level }}"
+        ARGS="$INPUT_COMMAND"
+        ARGS="$ARGS --config $INPUT_CONFIG"
+        ARGS="$ARGS --dir $INPUT_DIR"
+        ARGS="$ARGS --log-level $INPUT_LOG_LEVEL"
 
-        if [ "${{ inputs.command }}" = "update" ]; then
-          ARGS="$ARGS --github-token ${{ inputs.github-token }}"
-          ARGS="$ARGS --repo ${{ github.repository }}"
-          ARGS="$ARGS --max-prs ${{ inputs.max-prs }}"
-          if [ "${{ inputs.allow-major }}" = "true" ]; then
+        if [ "$INPUT_COMMAND" = "update" ]; then
+          ARGS="$ARGS --repo $INPUT_REPO"
+          ARGS="$ARGS --max-prs $INPUT_MAX_PRS"
+          if [ "$INPUT_ALLOW_MAJOR" = "true" ]; then
             ARGS="$ARGS --allow-major"
           fi
         fi
 
-        if [ -n "${{ inputs.chart }}" ]; then
-          ARGS="$ARGS --chart ${{ inputs.chart }}"
+        if [ -n "$INPUT_CHART" ]; then
+          ARGS="$ARGS --chart $INPUT_CHART"
         fi
 
-        ancaeus $ARGS
+        OUTPUT=$(ancaeus $ARGS 2>&1) || true
+        echo "$OUTPUT"
+
+        UPDATES=$(echo "$OUTPUT" | grep -oP '\d+(?= update\(s\) available)' || echo "0")
+        PRS=$(echo "$OUTPUT" | grep -oP 'Created \K\d+(?= PR)' || echo "0")
+        echo "updates-found=$UPDATES" >> "$GITHUB_OUTPUT"
+        echo "prs-created=$PRS" >> "$GITHUB_OUTPUT"

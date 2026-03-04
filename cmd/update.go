@@ -63,7 +63,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check versions and create PRs
-	factory := registry.NewFactory(cfg)
+	factory := registry.NewFactory(cfg, token)
 
 	maxPRCount := opts.maxPRs
 	if maxPRCount == 0 {

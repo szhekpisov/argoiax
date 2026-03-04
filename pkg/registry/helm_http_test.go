@@ -51,7 +51,7 @@ entries:
 	}
 }
 
-func TestResolveLatest_SkipsPreRelease(t *testing.T) {
+func TestLatestStable_SkipsPreRelease(t *testing.T) {
 	indexYAML := `
 apiVersion: v1
 entries:
@@ -91,7 +91,7 @@ entries:
 	}
 }
 
-func TestResolveLatest_WithConstraint(t *testing.T) {
+func TestLatestStable_WithConstraint(t *testing.T) {
 	indexYAML := `
 apiVersion: v1
 entries:

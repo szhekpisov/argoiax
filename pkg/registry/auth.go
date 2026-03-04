@@ -5,9 +5,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/vertrost/ancaeus/pkg/config"
 )
+
+const defaultHTTPTimeout = 60 * time.Second
 
 // DrainBody reads any remaining data from body and closes it.
 // Use as: defer registry.DrainBody(resp.Body)
@@ -25,23 +28,24 @@ type AuthTransport struct {
 }
 
 func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := req.Clone(req.Context())
 	if t.Username != "" || t.Password != "" {
-		req.SetBasicAuth(t.Username, t.Password)
+		r.SetBasicAuth(t.Username, t.Password)
 	} else if t.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t.Token))
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t.Token))
 	}
 	base := t.Base
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return base.RoundTrip(req)
+	return base.RoundTrip(r)
 }
 
 // NewAuthenticatedClient creates an HTTP client with authentication for a given repo URL.
 func NewAuthenticatedClient(cfg *config.Config, repoURL string) *http.Client {
 	auth := cfg.FindRepoAuth(repoURL)
 	if auth == nil {
-		return &http.Client{}
+		return &http.Client{Timeout: defaultHTTPTimeout}
 	}
 
 	return &http.Client{
@@ -49,6 +53,7 @@ func NewAuthenticatedClient(cfg *config.Config, repoURL string) *http.Client {
 			Username: auth.Username,
 			Password: auth.Password,
 		},
+		Timeout: defaultHTTPTimeout,
 	}
 }
 
@@ -56,6 +61,7 @@ func NewAuthenticatedClient(cfg *config.Config, repoURL string) *http.Client {
 func NewTokenClient(token string) *http.Client {
 	return &http.Client{
 		Transport: &AuthTransport{Token: token},
+		Timeout:   defaultHTTPTimeout,
 	}
 }
 

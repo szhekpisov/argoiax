@@ -158,7 +158,7 @@ func (c *Config) LookupChart(name, repoURL string) *Chart {
 // FindRepoAuth returns auth config for a given repo URL.
 func (c *Config) FindRepoAuth(repoURL string) *HelmRepoAuth {
 	for i := range c.Auth.HelmRepos {
-		if strings.HasPrefix(repoURL, c.Auth.HelmRepos[i].URL) {
+		if repoURL == c.Auth.HelmRepos[i].URL || strings.HasPrefix(repoURL, c.Auth.HelmRepos[i].URL+"/") {
 			return &c.Auth.HelmRepos[i]
 		}
 	}

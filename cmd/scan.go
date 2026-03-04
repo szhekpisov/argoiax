@@ -66,7 +66,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 }
 
 func checkVersions(ctx context.Context, cfg *config.Config, refs []manifest.ChartReference) []output.DriftResult {
-	factory := registry.NewFactory(cfg)
+	factory := registry.NewFactory(cfg, registry.GetGitHubToken())
 	results := make([]output.DriftResult, len(refs))
 
 	const maxConcurrency = 10

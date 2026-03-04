@@ -22,11 +22,11 @@ type Factory struct {
 }
 
 // NewFactory creates a new Registry factory with the given config.
-func NewFactory(cfg *config.Config) *Factory {
+func NewFactory(cfg *config.Config, githubToken string) *Factory {
 	return &Factory{
 		helmHTTP: NewHelmHTTPRegistry(cfg),
 		oci:      NewOCIRegistry(cfg),
-		git:      NewGitRegistry(),
+		git:      NewGitRegistry(githubToken),
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 
@@ -52,7 +53,7 @@ func (r *HelmHTTPRegistry) ListVersions(ctx context.Context, ref manifest.ChartR
 		return nil, fmt.Errorf("chart %q not found in repo %s", ref.ChartName, ref.RepoURL)
 	}
 
-	return versions, nil
+	return slices.Clone(versions), nil
 }
 
 func (r *HelmHTTPRegistry) fetchIndex(ctx context.Context, repoURL string) (*indexCache, error) {
@@ -60,12 +61,14 @@ func (r *HelmHTTPRegistry) fetchIndex(ctx context.Context, repoURL string) (*ind
 		return cached.(*indexCache), nil
 	}
 
+	// Use a context detached from the caller so that if the winning goroutine's
+	// context is cancelled, other waiters sharing this singleflight call are not affected.
 	v, err, _ := r.group.Do(repoURL, func() (interface{}, error) {
 		// Double-check after winning the race
 		if cached, ok := r.cache.Load(repoURL); ok {
 			return cached.(*indexCache), nil
 		}
-		return r.doFetchIndex(ctx, repoURL)
+		return r.doFetchIndex(context.WithoutCancel(ctx), repoURL)
 	})
 	if err != nil {
 		return nil, err
@@ -93,7 +96,8 @@ func (r *HelmHTTPRegistry) doFetchIndex(ctx context.Context, repoURL string) (*i
 		return nil, fmt.Errorf("fetching index from %s: status %d", indexURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	const maxIndexSize = 50 * 1024 * 1024 // 50 MB
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxIndexSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading index body: %w", err)
 	}

@@ -36,16 +36,6 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 		return nil, fmt.Errorf("rendering branch template: %w", err)
 	}
 
-	// Check if a PR already exists
-	exists, err := g.ExistingPR(ctx, branch)
-	if err != nil {
-		slog.Warn("error checking existing PR", "error", err)
-	}
-	if exists {
-		slog.Info("PR already exists", "branch", branch)
-		return nil, fmt.Errorf("PR already exists for branch %s", branch)
-	}
-
 	// Get the base branch ref
 	baseRef, _, err := g.client.Git.GetRef(ctx, g.owner, g.repo, "refs/heads/"+baseBranch)
 	if err != nil {
@@ -65,6 +55,7 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 	// Get the current file to get its SHA
 	existingFile, _, _, err := g.client.Repositories.GetContents(ctx, g.owner, g.repo, info.FilePath, &github.RepositoryContentGetOptions{Ref: branch})
 	if err != nil {
+		g.deleteBranch(ctx, branch)
 		return nil, fmt.Errorf("getting file %s: %w", info.FilePath, err)
 	}
 
@@ -82,6 +73,7 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 		},
 	})
 	if err != nil {
+		g.deleteBranch(ctx, branch)
 		return nil, fmt.Errorf("updating file: %w", err)
 	}
 
@@ -116,6 +108,7 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 		Body:  &body,
 	})
 	if err != nil {
+		g.deleteBranch(ctx, branch)
 		return nil, fmt.Errorf("creating PR: %w", err)
 	}
 
@@ -132,6 +125,13 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 		PRNumber: pr.GetNumber(),
 		Branch:   branch,
 	}, nil
+}
+
+func (g *GitHubCreator) deleteBranch(ctx context.Context, branch string) {
+	_, err := g.client.Git.DeleteRef(ctx, g.owner, g.repo, "refs/heads/"+branch)
+	if err != nil {
+		slog.Warn("failed to clean up branch", "branch", branch, "error", err)
+	}
 }
 
 func (g *GitHubCreator) ExistingPR(ctx context.Context, branch string) (bool, error) {
