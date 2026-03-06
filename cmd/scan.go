@@ -93,7 +93,7 @@ func checkVersions(ctx context.Context, cfg *config.Config, refs []manifest.Char
 			}
 			defer sem.Release(1)
 
-			latest, _, _, err := resolveLatest(ctx, factory, cfg, ref)
+			latest, _, _, err := resolveLatest(ctx, factory, cfg, &ref)
 			if err != nil {
 				slog.Error("failed to resolve latest version", "chart", ref.ChartName, "error", err)
 				results[idx].LatestVersion = "?"

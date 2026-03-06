@@ -97,13 +97,13 @@ func resolveCredentials() (token, owner, repo string, err error) {
 }
 
 func printDryRun(updates []resolvedUpdate) {
-	for _, u := range updates {
+	for i := range updates {
 		status := output.StatusUpdateAvailable
-		if u.info.IsBreaking {
+		if updates[i].info.IsBreaking {
 			status = output.StatusBreaking
 		}
 		fmt.Printf("[DRY-RUN] Would update %s in %s: %s → %s (%s)\n",
-			u.info.ChartName, u.info.FilePath, u.info.OldVersion, u.info.NewVersion, status)
+			updates[i].info.ChartName, updates[i].info.FilePath, updates[i].info.OldVersion, updates[i].info.NewVersion, status)
 	}
 }
 
@@ -111,7 +111,7 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
 	ghClient := github.NewClient(tc)
-	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, cfg.Settings)
+	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, &cfg.Settings)
 
 	maxPRCount := opts.maxPRs
 	if maxPRCount == 0 {
@@ -122,14 +122,14 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	var err error
 	switch cfg.Settings.PRStrategy {
 	case config.StrategyPerFile:
-		prsCreated = createPerFilePRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
+		prsCreated = createPerFilePRs(ctx, &cfg.Settings, updates, prCreator, maxPRCount)
 	case config.StrategyBatch:
-		prsCreated, err = createBatchPR(ctx, cfg.Settings, updates, prCreator)
+		prsCreated, err = createBatchPR(ctx, &cfg.Settings, updates, prCreator)
 		if err != nil {
 			return err
 		}
 	default:
-		prsCreated = createPerChartPRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
+		prsCreated = createPerChartPRs(ctx, &cfg.Settings, updates, prCreator, maxPRCount)
 	}
 
 	if prsCreated == 0 {
@@ -144,7 +144,8 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.ChartReference, factory *registry.Factory, notesOrch *releasenotes.Orchestrator) []resolvedUpdate {
 	var updates []resolvedUpdate
 
-	for _, ref := range refs {
+	for i := range refs {
+		ref := &refs[i]
 		latest, allVersions, chartCfg, err := resolveLatest(ctx, factory, cfg, ref)
 		if err != nil {
 			slog.Error("failed to resolve latest version", "chart", ref.ChartName, "error", err)
@@ -175,7 +176,7 @@ func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.Cha
 		breakingResult := semver.DetectBreaking(ref.TargetRevision, latest, notes.CombinedBody())
 
 		updates = append(updates, resolvedUpdate{
-			ref: ref,
+			ref: *ref,
 			info: pr.UpdateInfo{
 				ChartName:       ref.ChartName,
 				OldVersion:      ref.TargetRevision,
@@ -193,40 +194,40 @@ func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.Cha
 }
 
 // createPerChartPRs creates one PR per chart update (existing behavior).
-func createPerChartPRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
+func createPerChartPRs(ctx context.Context, settings *config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
 	prsCreated := 0
 
-	for _, u := range updates {
+	for i := range updates {
 		if maxPRCount > 0 && prsCreated >= maxPRCount {
 			slog.Info("reached max PR limit", "limit", maxPRCount)
 			break
 		}
 
 		// Check for existing PR
-		branch, err := pr.RenderTemplate(settings.BranchTemplate, u.info)
+		branch, err := pr.RenderTemplate(settings.BranchTemplate, updates[i].info)
 		if err != nil {
-			slog.Error("failed to render branch template", "chart", u.info.ChartName, "error", err)
+			slog.Error("failed to render branch template", "chart", updates[i].info.ChartName, "error", err)
 			continue
 		}
 		exists, err := prCreator.ExistingPR(ctx, branch)
 		if err != nil {
-			slog.Warn("error checking existing PR", "chart", u.info.ChartName, "error", err)
+			slog.Warn("error checking existing PR", "chart", updates[i].info.ChartName, "error", err)
 		}
 		if exists {
-			slog.Info("PR already exists, skipping", "chart", u.info.ChartName, "branch", branch)
+			slog.Info("PR already exists, skipping", "chart", updates[i].info.ChartName, "branch", branch)
 			continue
 		}
 
 		// Read and update the file
-		updatedData, err := applyFileUpdates([]resolvedUpdate{u})
+		updatedData, err := applyFileUpdates([]resolvedUpdate{updates[i]})
 		if err != nil {
-			slog.Error("failed to apply file update", "chart", u.info.ChartName, "error", err)
+			slog.Error("failed to apply file update", "chart", updates[i].info.ChartName, "error", err)
 			continue
 		}
 
-		result, err := prCreator.CreatePR(ctx, u.info, updatedData, settings.BaseBranch)
+		result, err := prCreator.CreatePR(ctx, &updates[i].info, updatedData, settings.BaseBranch)
 		if err != nil {
-			slog.Error("failed to create PR", "chart", u.info.ChartName, "error", err)
+			slog.Error("failed to create PR", "chart", updates[i].info.ChartName, "error", err)
 			continue
 		}
 
@@ -238,15 +239,14 @@ func createPerChartPRs(ctx context.Context, settings config.Settings, updates []
 }
 
 // groupByFile groups resolved updates by file path, returning both the groups and ordered keys in a single pass.
-func groupByFile(updates []resolvedUpdate) (map[string][]resolvedUpdate, []string) {
-	groups := make(map[string][]resolvedUpdate)
-	var keys []string
-	for _, u := range updates {
-		fp := u.info.FilePath
+func groupByFile(updates []resolvedUpdate) (groups map[string][]resolvedUpdate, keys []string) {
+	groups = make(map[string][]resolvedUpdate)
+	for i := range updates {
+		fp := updates[i].info.FilePath
 		if _, exists := groups[fp]; !exists {
 			keys = append(keys, fp)
 		}
-		groups[fp] = append(groups[fp], u)
+		groups[fp] = append(groups[fp], updates[i])
 	}
 	return groups, keys
 }
@@ -262,10 +262,10 @@ func applyFileUpdates(fileUpdates []resolvedUpdate) ([]byte, error) {
 		return nil, fmt.Errorf("reading file %s: %w", fileUpdates[0].ref.FilePath, err)
 	}
 
-	for _, u := range fileUpdates {
-		data, err = updater.UpdateBytes(data, u.ref, u.info.NewVersion)
+	for i := range fileUpdates {
+		data, err = updater.UpdateBytes(data, &fileUpdates[i].ref, fileUpdates[i].info.NewVersion)
 		if err != nil {
-			return nil, fmt.Errorf("updating chart %s in %s: %w", u.info.ChartName, u.ref.FilePath, err)
+			return nil, fmt.Errorf("updating chart %s in %s: %w", fileUpdates[i].info.ChartName, fileUpdates[i].ref.FilePath, err)
 		}
 	}
 
@@ -275,14 +275,14 @@ func applyFileUpdates(fileUpdates []resolvedUpdate) ([]byte, error) {
 // collectInfos extracts UpdateInfo from a slice of resolvedUpdates.
 func collectInfos(updates []resolvedUpdate) []pr.UpdateInfo {
 	infos := make([]pr.UpdateInfo, len(updates))
-	for i, u := range updates {
-		infos[i] = u.info
+	for i := range updates {
+		infos[i] = updates[i].info
 	}
 	return infos
 }
 
 // createPerFilePRs creates one PR per file, grouping all chart updates within that file.
-func createPerFilePRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
+func createPerFilePRs(ctx context.Context, settings *config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
 	groups, fileKeys := groupByFile(updates)
 	prsCreated := 0
 
@@ -337,7 +337,7 @@ func createPerFilePRs(ctx context.Context, settings config.Settings, updates []r
 }
 
 // createBatchPR creates a single PR for all chart updates across all files.
-func createBatchPR(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator) (int, error) {
+func createBatchPR(ctx context.Context, settings *config.Settings, updates []resolvedUpdate, prCreator pr.Creator) (int, error) {
 	groups, fileKeys := groupByFile(updates)
 
 	files := make([]pr.FileUpdate, len(fileKeys))
@@ -382,7 +382,7 @@ func createBatchPR(ctx context.Context, settings config.Settings, updates []reso
 	return 1, nil
 }
 
-func resolveRepo(slug string) (string, string, error) {
+func resolveRepo(slug string) (owner, repo string, err error) {
 	if slug == "" {
 		slug = os.Getenv("GITHUB_REPOSITORY")
 	}

@@ -27,7 +27,7 @@ spec:
 		SourceIndex:    -1,
 	}
 
-	result, err := UpdateBytes([]byte(input), ref, "1.14.1")
+	result, err := UpdateBytes([]byte(input), &ref, "1.14.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +63,7 @@ spec:
 		SourceIndex:    1,
 	}
 
-	result, err := UpdateBytes([]byte(input), ref, "8.2.0")
+	result, err := UpdateBytes([]byte(input), &ref, "8.2.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -94,7 +94,7 @@ spec:
 		SourceIndex:    -1,
 	}
 
-	_, err := UpdateBytes([]byte(input), ref, "3.0.0")
+	_, err := UpdateBytes([]byte(input), &ref, "3.0.0")
 	if err == nil {
 		t.Error("expected error for version mismatch")
 	}

@@ -16,7 +16,7 @@ func TestRenderPRBody_Basic(t *testing.T) {
 		IsBreaking: false,
 	}
 
-	body := RenderPRBody(info)
+	body := RenderPRBody(&info)
 
 	if !strings.Contains(body, "Bumps [cert-manager](https://charts.jetstack.io) from 1.13.2 to 1.14.1.") {
 		t.Error("expected Dependabot-style opening line")
@@ -45,7 +45,7 @@ func TestRenderPRBody_Breaking(t *testing.T) {
 		},
 	}
 
-	body := RenderPRBody(info)
+	body := RenderPRBody(&info)
 
 	if !strings.Contains(body, "> [!WARNING]") {
 		t.Error("expected breaking change warning")
@@ -76,7 +76,7 @@ func TestRenderPRBody_WithReleaseNotes(t *testing.T) {
 		},
 	}
 
-	body := RenderPRBody(info)
+	body := RenderPRBody(&info)
 
 	if !strings.Contains(body, "<details>") {
 		t.Error("expected collapsible release notes section")
@@ -103,7 +103,7 @@ func TestRenderPRBody_NoReleaseNotes(t *testing.T) {
 		NewVersion: "1.1.0",
 	}
 
-	body := RenderPRBody(info)
+	body := RenderPRBody(&info)
 
 	if strings.Contains(body, "<summary>Release notes</summary>") {
 		t.Error("did not expect release notes section")

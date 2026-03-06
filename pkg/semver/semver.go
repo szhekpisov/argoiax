@@ -41,12 +41,12 @@ func LatestStable(versions []string, constraint string) (string, error) {
 }
 
 // parsePair parses two version strings and returns both parsed versions.
-func parsePair(current, latest string) (*sv.Version, *sv.Version, error) {
-	cur, err := sv.NewVersion(current)
+func parsePair(current, latest string) (cur, lat *sv.Version, err error) {
+	cur, err = sv.NewVersion(current)
 	if err != nil {
 		return nil, nil, err
 	}
-	lat, err := sv.NewVersion(latest)
+	lat, err = sv.NewVersion(latest)
 	if err != nil {
 		return nil, nil, err
 	}

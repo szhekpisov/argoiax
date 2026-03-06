@@ -14,7 +14,7 @@ import (
 
 // UpdateBytes updates the targetRevision in raw YAML bytes, preserving formatting.
 // Supports multi-document YAML files.
-func UpdateBytes(data []byte, ref manifest.ChartReference, newVersion string) ([]byte, error) {
+func UpdateBytes(data []byte, ref *manifest.ChartReference, newVersion string) ([]byte, error) {
 	docs, err := parseDocuments(data)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func parseDocuments(data []byte) ([]*yaml.Node, error) {
 	return docs, nil
 }
 
-func findAndUpdateNode(docs []*yaml.Node, ref manifest.ChartReference, newVersion string) bool {
+func findAndUpdateNode(docs []*yaml.Node, ref *manifest.ChartReference, newVersion string) bool {
 	for _, doc := range docs {
 		if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
 			continue
@@ -89,37 +89,51 @@ func navigateToNode(node *yaml.Node, path string) (*yaml.Node, error) {
 		name, idx := parsePathPart(part)
 
 		if name != "" {
-			found := false
-			if current.Kind == yaml.MappingNode {
-				for i := 0; i < len(current.Content)-1; i += 2 {
-					if current.Content[i].Value == name {
-						current = current.Content[i+1]
-						found = true
-						break
-					}
-				}
+			child, err := findMappingKey(current, name)
+			if err != nil {
+				return nil, err
 			}
-			if !found {
-				return nil, fmt.Errorf("key %q not found", name)
-			}
+			current = child
 		}
 
 		if idx >= 0 {
-			if current.Kind != yaml.SequenceNode {
-				return nil, fmt.Errorf("expected sequence at %q, got %v", part, current.Kind)
+			child, err := indexSequence(current, part, idx)
+			if err != nil {
+				return nil, err
 			}
-			if idx >= len(current.Content) {
-				return nil, fmt.Errorf("index %d out of bounds (len=%d)", idx, len(current.Content))
-			}
-			current = current.Content[idx]
+			current = child
 		}
 	}
 
 	return current, nil
 }
 
+// findMappingKey looks up a key in a YAML mapping node and returns its value node.
+func findMappingKey(node *yaml.Node, key string) (*yaml.Node, error) {
+	if node.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("key %q not found", key)
+	}
+	for i := 0; i < len(node.Content)-1; i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1], nil
+		}
+	}
+	return nil, fmt.Errorf("key %q not found", key)
+}
+
+// indexSequence returns the element at the given index in a YAML sequence node.
+func indexSequence(node *yaml.Node, part string, idx int) (*yaml.Node, error) {
+	if node.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("expected sequence at %q, got %v", part, node.Kind)
+	}
+	if idx >= len(node.Content) {
+		return nil, fmt.Errorf("index %d out of bounds (len=%d)", idx, len(node.Content))
+	}
+	return node.Content[idx], nil
+}
+
 // parsePathPart parses "sources[0]" into ("sources", 0) or "source" into ("source", -1).
-func parsePathPart(part string) (string, int) {
+func parsePathPart(part string) (name string, idx int) {
 	bracketIdx := strings.Index(part, "[")
 	if bracketIdx == -1 {
 		return part, -1
@@ -127,9 +141,10 @@ func parsePathPart(part string) (string, int) {
 	if !strings.HasSuffix(part, "]") {
 		return part, -1
 	}
-	name := part[:bracketIdx]
+	name = part[:bracketIdx]
 	idxStr := part[bracketIdx+1 : len(part)-1]
-	idx, err := strconv.Atoi(idxStr)
+	var err error
+	idx, err = strconv.Atoi(idxStr)
 	if err != nil {
 		return part, -1
 	}

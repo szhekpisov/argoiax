@@ -15,7 +15,7 @@ type BreakingChangeResult struct {
 const maxBreakingReasons = 5
 
 var breakingPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)\bBREAKING\s+CHANGE[S]?\b`),
+	regexp.MustCompile(`(?i)\bBREAKING\s+CHANGES?\b`),
 	regexp.MustCompile(`(?i)\bBREAKING\b:\s`),
 	regexp.MustCompile(`(?i)\bremoved\b.*\b(?:parameter|field|option|flag|api|endpoint|feature)\b`),
 	regexp.MustCompile(`(?i)\b(?:parameter|field|option|flag|api|endpoint|feature)\b.*\bremoved\b`),

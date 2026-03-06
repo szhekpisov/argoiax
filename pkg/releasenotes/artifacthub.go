@@ -85,7 +85,7 @@ func (f *ArtifactHubFetcher) fetchVersion(ctx context.Context, repo GitHubRepo, 
 func (f *ArtifactHubFetcher) tryPackage(ctx context.Context, pkg, version string) (*Entry, string, error) {
 	url := fmt.Sprintf("https://artifacthub.io/api/v1/packages/%s/%s", pkg, version)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, "", err
 	}

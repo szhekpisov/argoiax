@@ -43,7 +43,7 @@ func NewHelmHTTPRegistry(cfg *config.Config) *HelmHTTPRegistry {
 }
 
 // ListVersions returns all available versions for a chart from a Helm HTTP repository.
-func (r *HelmHTTPRegistry) ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error) {
+func (r *HelmHTTPRegistry) ListVersions(ctx context.Context, ref *manifest.ChartReference) ([]string, error) {
 	idx, err := r.fetchIndex(ctx, ref.RepoURL)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (r *HelmHTTPRegistry) doFetchIndex(ctx context.Context, repoURL string) (*i
 	slog.Debug("fetching helm index", "url", indexURL)
 
 	client := r.getClient(repoURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}

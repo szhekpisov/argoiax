@@ -8,7 +8,7 @@ import (
 )
 
 // RenderPRBody generates a Dependabot-style PR body for a chart update.
-func RenderPRBody(info UpdateInfo) string {
+func RenderPRBody(info *UpdateInfo) string {
 	var b strings.Builder
 
 	// Opening line (Dependabot style)

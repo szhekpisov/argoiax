@@ -11,7 +11,7 @@ import (
 // Registry is the interface for checking chart versions across different repository types.
 type Registry interface {
 	// ListVersions returns all available versions for a chart reference.
-	ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error)
+	ListVersions(ctx context.Context, ref *manifest.ChartReference) ([]string, error)
 }
 
 // Factory creates Registry instances based on the chart reference type.
@@ -31,7 +31,7 @@ func NewFactory(cfg *config.Config, githubToken string) *Factory {
 }
 
 // GetRegistry returns the appropriate Registry implementation for the given chart reference.
-func (f *Factory) GetRegistry(ref manifest.ChartReference) (Registry, error) {
+func (f *Factory) GetRegistry(ref *manifest.ChartReference) (Registry, error) {
 	switch ref.Type {
 	case manifest.SourceTypeHTTP:
 		return f.helmHTTP, nil

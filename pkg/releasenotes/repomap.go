@@ -27,7 +27,7 @@ func heuristicMap(repoURL string) GitHubRepo {
 		return fromGitHubPages(repoURL)
 	}
 
-	// Pattern: oci://ghcr.io/<org>/<path>
+	// Matches OCI GHCR URLs (ghcr.io)
 	if strings.HasPrefix(repoURL, "oci://ghcr.io/") {
 		return fromGHCR(repoURL)
 	}
@@ -66,7 +66,7 @@ func fromGitHubPages(url string) GitHubRepo {
 }
 
 func fromGHCR(url string) GitHubRepo {
-	// oci://ghcr.io/org/charts/chartname → github.com/org/charts
+	// Maps GHCR OCI path segments to GitHub owner and repo
 	path := strings.TrimPrefix(url, "oci://ghcr.io/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {

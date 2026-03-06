@@ -54,7 +54,7 @@ type GroupTemplateData struct {
 // Creator is the interface for creating pull requests.
 type Creator interface {
 	// CreatePR creates a pull request for a single chart update.
-	CreatePR(ctx context.Context, info UpdateInfo, fileContent []byte, baseBranch string) (*Result, error)
+	CreatePR(ctx context.Context, info *UpdateInfo, fileContent []byte, baseBranch string) (*Result, error)
 
 	// CreateGroupPR creates a pull request for a group of chart updates.
 	CreateGroupPR(ctx context.Context, group UpdateGroup, baseBranch string) (*Result, error)

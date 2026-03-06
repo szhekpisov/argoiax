@@ -28,7 +28,7 @@ type gitTag struct {
 }
 
 // ListVersions returns all available tags from a GitHub repository.
-func (r *GitRegistry) ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error) {
+func (r *GitRegistry) ListVersions(ctx context.Context, ref *manifest.ChartReference) ([]string, error) {
 	owner, repo := ExtractGitHubOwnerRepo(ref.RepoURL)
 	if owner == "" || repo == "" {
 		return nil, fmt.Errorf("cannot extract GitHub owner/repo from %s", ref.RepoURL)
@@ -54,7 +54,7 @@ func (r *GitRegistry) ListVersions(ctx context.Context, ref manifest.ChartRefere
 }
 
 func (r *GitRegistry) fetchTagPage(ctx context.Context, apiURL string) ([]gitTag, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
 	if err != nil {
 		return nil, "", err
 	}
@@ -99,7 +99,7 @@ func parseNextLink(header string) string {
 
 // ExtractGitHubOwnerRepo extracts the owner and repo from a GitHub URL.
 // Handles https, http, git@github.com:, and github.com/ prefixes.
-func ExtractGitHubOwnerRepo(repoURL string) (string, string) {
+func ExtractGitHubOwnerRepo(repoURL string) (owner, repo string) {
 	url := repoURL
 	url = strings.TrimSuffix(url, ".git")
 	url = strings.TrimPrefix(url, "https://")

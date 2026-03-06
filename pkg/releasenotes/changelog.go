@@ -53,18 +53,18 @@ func (f *ChangelogFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions 
 	return entries, sourceURL, nil
 }
 
-func (f *ChangelogFetcher) fetchChangelogContent(ctx context.Context, repo GitHubRepo) (string, string, error) {
+func (f *ChangelogFetcher) fetchChangelogContent(ctx context.Context, repo GitHubRepo) (content, rawURL string, err error) {
 	filenames := []string{"CHANGELOG.md", "changelog.md", "CHANGES.md", "HISTORY.md"}
 	branches := []string{"main", "master"}
 
 	for _, filename := range filenames {
 		for _, branch := range branches {
-			content, err := f.tryChangelogFile(ctx, repo, branch, filename)
+			body, err := f.tryChangelogFile(ctx, repo, branch, filename)
 			if err != nil {
 				continue
 			}
-			if content != "" {
-				return content, branch, nil
+			if body != "" {
+				return body, branch, nil
 			}
 		}
 	}
@@ -75,7 +75,7 @@ func (f *ChangelogFetcher) fetchChangelogContent(ctx context.Context, repo GitHu
 func (f *ChangelogFetcher) tryChangelogFile(ctx context.Context, repo GitHubRepo, branch, filename string) (string, error) {
 	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", repo.Owner, repo.Repo, branch, filename)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return "", err
 	}

@@ -72,7 +72,7 @@ type githubRelease struct {
 func (f *GitHubFetcher) fetchReleaseByTag(ctx context.Context, repo GitHubRepo, tag, version string) (*Entry, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/%s", repo.Owner, repo.Repo, tag)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}

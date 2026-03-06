@@ -37,7 +37,7 @@ entries:
 		Type:      manifest.SourceTypeHTTP,
 	}
 
-	versions, err := reg.ListVersions(context.Background(), ref)
+	versions, err := reg.ListVersions(context.Background(), &ref)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -71,7 +71,7 @@ entries:
 		Type:      manifest.SourceTypeHTTP,
 	}
 
-	versions, err := reg.ListVersions(context.Background(), ref)
+	versions, err := reg.ListVersions(context.Background(), &ref)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,7 +110,7 @@ entries:
 		Type:      manifest.SourceTypeHTTP,
 	}
 
-	versions, err := reg.ListVersions(context.Background(), ref)
+	versions, err := reg.ListVersions(context.Background(), &ref)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,7 +146,7 @@ entries:
 		Type:      manifest.SourceTypeHTTP,
 	}
 
-	_, err := reg.ListVersions(context.Background(), ref)
+	_, err := reg.ListVersions(context.Background(), &ref)
 	if err == nil {
 		t.Error("expected error for nonexistent chart")
 	}

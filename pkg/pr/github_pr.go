@@ -20,17 +20,17 @@ type GitHubCreator struct {
 }
 
 // NewGitHubCreator creates a new GitHubCreator.
-func NewGitHubCreator(client *github.Client, owner, repo string, settings config.Settings) *GitHubCreator {
+func NewGitHubCreator(client *github.Client, owner, repo string, settings *config.Settings) *GitHubCreator {
 	return &GitHubCreator{
 		client:   client,
 		owner:    owner,
 		repo:     repo,
-		settings: settings,
+		settings: *settings,
 	}
 }
 
 // CreatePR creates a pull request for a single chart update.
-func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileContent []byte, baseBranch string) (*Result, error) {
+func (g *GitHubCreator) CreatePR(ctx context.Context, info *UpdateInfo, fileContent []byte, baseBranch string) (*Result, error) {
 	branch, err := RenderTemplate(g.settings.BranchTemplate, info)
 	if err != nil {
 		return nil, fmt.Errorf("rendering branch template: %w", err)
