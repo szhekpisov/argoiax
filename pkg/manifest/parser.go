@@ -180,11 +180,21 @@ func looksLikeSemver(s string) bool {
 	if s == "" {
 		return false
 	}
-	// Must start with a digit and contain at least one dot
-	if s[0] < '0' || s[0] > '9' {
+	// Require at least two dot-separated numeric segments (e.g. "1.2")
+	dotIdx := strings.IndexByte(s, '.')
+	if dotIdx < 1 {
 		return false
 	}
-	return strings.Contains(s, ".")
+	for i := range dotIdx {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	// At least one digit must follow the dot
+	if dotIdx+1 >= len(s) || s[dotIdx+1] < '0' || s[dotIdx+1] > '9' {
+		return false
+	}
+	return true
 }
 
 func getMapValue(node *yaml.Node, key string) string {

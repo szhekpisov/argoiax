@@ -16,29 +16,36 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-var scanCmd = &cobra.Command{
-	Use:   "scan",
-	Short: "Scan for outdated Helm chart versions in ArgoCD manifests",
-	Long:  `Scan scans your GitOps repository for ArgoCD Application manifests and reports which Helm charts have newer versions available.`,
-	RunE:  runScan,
+func newScanCmd(root *rootOptions) *cobra.Command {
+	var (
+		chartFilter  string
+		outputFormat string
+		showUpToDate bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "scan",
+		Short: "Scan for outdated Helm chart versions in ArgoCD manifests",
+		Long:  `Scan scans your GitOps repository for ArgoCD Application manifests and reports which Helm charts have newer versions available.`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runScan(cmd.Context(), root.cfgFile, root.scanDir, chartFilter, outputFormat, showUpToDate)
+		},
+	}
+
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format (table, json, markdown)")
+	cmd.Flags().StringVar(&chartFilter, "chart", "", "only check a specific chart name")
+	cmd.Flags().BoolVar(&showUpToDate, "show-uptodate", false, "include up-to-date charts in output")
+
+	return cmd
 }
 
-func init() {
-	scanCmd.Flags().StringVarP(&opts.outputFormat, "output", "o", "table", "output format (table, json, markdown)")
-	scanCmd.Flags().StringVar(&opts.chartFilter, "chart", "", "only check a specific chart name")
-	scanCmd.Flags().BoolVar(&opts.showUpToDate, "show-uptodate", false, "include up-to-date charts in output")
-	rootCmd.AddCommand(scanCmd)
-}
-
-func runScan(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
-	cfg, err := config.Load(opts.cfgFile)
+func runScan(ctx context.Context, cfgFile, scanDir, chartFilter, outputFormat string, showUpToDate bool) error {
+	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return err
 	}
 
-	refs, err := scanRefs(cfg, opts.scanDir, opts.chartFilter)
+	refs, err := scanRefs(cfg, scanDir, chartFilter)
 	if err != nil {
 		return err
 	}
@@ -48,15 +55,13 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Check versions
 	results := checkVersions(ctx, cfg, refs)
 
-	// Render output
 	renderer := &output.Renderer{
 		Writer:       os.Stdout,
-		ShowUpToDate: opts.showUpToDate,
+		ShowUpToDate: showUpToDate,
 	}
-	if err := renderer.Render(results, opts.outputFormat); err != nil {
+	if err := renderer.Render(results, outputFormat); err != nil {
 		return fmt.Errorf("rendering output: %w", err)
 	}
 

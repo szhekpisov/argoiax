@@ -294,6 +294,10 @@ func TestLooksLikeSemver(t *testing.T) {
 		{"", false},
 		{"v1", false},
 		{"1.2.3-rc1", true},
+		{"1.abc", false},
+		{"3.", false},
+		{"99.z", false},
+		{"abc.1", false},
 	}
 
 	for _, tt := range tests {

@@ -13,14 +13,12 @@ var (
 	Date    = "unknown"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print the version of argoiax",
-	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Printf("argoiax %s (commit: %s, built: %s)\n", Version, Commit, Date)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version of argoiax",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("argoiax %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		},
+	}
 }

@@ -7,54 +7,48 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// opts holds all CLI flag values in a single struct.
-var opts struct {
-	// root flags
+// rootOptions holds flags shared across all subcommands.
+type rootOptions struct {
 	cfgFile  string
 	scanDir  string
 	dryRun   bool
 	logLevel string
-
-	// shared between scan and update
-	chartFilter string
-
-	// scan flags
-	outputFormat string
-	showUpToDate bool
-
-	// update flags
-	allowMajor  bool
-	maxPRs      int
-	githubToken string
-	repoSlug    string
-}
-
-var rootCmd = &cobra.Command{
-	Use:   "argoiax",
-	Short: "Detect and update outdated Helm chart versions in ArgoCD manifests",
-	Long: `argoiax scans your GitOps repository for ArgoCD Application manifests,
-detects outdated Helm chart versions across HTTP, OCI, and Git repositories,
-fetches release notes with breaking change detection, and opens PRs for updates.`,
-	PersistentPreRun: func(_ *cobra.Command, _ []string) {
-		setupLogging()
-	},
 }
 
 // Execute runs the root CLI command.
 func Execute() error {
-	return rootCmd.Execute()
+	return newRootCmd().Execute()
 }
 
-func init() {
-	rootCmd.PersistentFlags().StringVar(&opts.cfgFile, "config", "", "config file (default: argoiax.yaml)")
-	rootCmd.PersistentFlags().StringVar(&opts.scanDir, "dir", "", "directory to scan (overrides config scanDirs)")
-	rootCmd.PersistentFlags().BoolVar(&opts.dryRun, "dry-run", false, "report changes without modifying files")
-	rootCmd.PersistentFlags().StringVar(&opts.logLevel, "log-level", "info", "log level (debug, info, warn, error)")
+func newRootCmd() *cobra.Command {
+	var o rootOptions
+
+	cmd := &cobra.Command{
+		Use:   "argoiax",
+		Short: "Detect and update outdated Helm chart versions in ArgoCD manifests",
+		Long: `argoiax scans your GitOps repository for ArgoCD Application manifests,
+detects outdated Helm chart versions across HTTP, OCI, and Git repositories,
+fetches release notes with breaking change detection, and opens PRs for updates.`,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			setupLogging(o.logLevel)
+		},
+	}
+
+	cmd.PersistentFlags().StringVar(&o.cfgFile, "config", "", "config file (default: argoiax.yaml)")
+	cmd.PersistentFlags().StringVar(&o.scanDir, "dir", "", "directory to scan (overrides config scanDirs)")
+	cmd.PersistentFlags().BoolVar(&o.dryRun, "dry-run", false, "report changes without modifying files")
+	cmd.PersistentFlags().StringVar(&o.logLevel, "log-level", "info", "log level (debug, info, warn, error)")
+
+	cmd.AddCommand(newScanCmd(&o))
+	cmd.AddCommand(newUpdateCmd(&o))
+	cmd.AddCommand(newVersionCmd())
+
+	return cmd
 }
 
-func setupLogging() {
+func setupLogging(logLevel string) {
 	var level slog.Level
-	if err := level.UnmarshalText([]byte(opts.logLevel)); err != nil {
+	if err := level.UnmarshalText([]byte(logLevel)); err != nil {
 		level = slog.LevelInfo
 	}
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
