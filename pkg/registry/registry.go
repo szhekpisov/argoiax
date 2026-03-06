@@ -14,6 +14,11 @@ type Registry interface {
 	ListVersions(ctx context.Context, ref *manifest.ChartReference) ([]string, error)
 }
 
+// FactoryInterface abstracts the creation of Registry instances for testability.
+type FactoryInterface interface {
+	GetRegistry(ref *manifest.ChartReference) (Registry, error)
+}
+
 // Factory creates Registry instances based on the chart reference type.
 type Factory struct {
 	helmHTTP *HelmHTTPRegistry

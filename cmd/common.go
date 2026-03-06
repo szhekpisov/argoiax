@@ -46,7 +46,7 @@ func scanRefs(cfg *config.Config, dir, chart string) ([]manifest.ChartReference,
 }
 
 // resolveLatest gets the registry for a ref, lists versions, and resolves the latest one.
-func resolveLatest(ctx context.Context, factory *registry.Factory, cfg *config.Config, ref *manifest.ChartReference) (latest string, allVersions []string, chartCfg *config.Chart, err error) {
+func resolveLatest(ctx context.Context, factory registry.FactoryInterface, cfg *config.Config, ref *manifest.ChartReference) (latest string, allVersions []string, chartCfg *config.Chart, err error) {
 	reg, err := factory.GetRegistry(ref)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("failed to get registry: %w", err)

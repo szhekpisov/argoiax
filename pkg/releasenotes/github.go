@@ -16,10 +16,10 @@ type GitHubFetcher struct {
 	client *http.Client
 }
 
-// NewGitHubFetcher creates a new GitHubFetcher.
-func NewGitHubFetcher(token string) *GitHubFetcher {
+// NewGitHubFetcher creates a new GitHubFetcher with the given HTTP client.
+func NewGitHubFetcher(client *http.Client) *GitHubFetcher {
 	return &GitHubFetcher{
-		client: registry.NewTokenClient(token),
+		client: client,
 	}
 }
 

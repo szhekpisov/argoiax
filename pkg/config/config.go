@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
@@ -151,6 +152,20 @@ func (c *Config) Validate() error {
 	for _, src := range c.Release.Sources {
 		if !validSources[src] {
 			return fmt.Errorf("invalid release notes source %q", src)
+		}
+	}
+
+	templates := map[string]string{
+		"branchTemplate":      c.Settings.BranchTemplate,
+		"titleTemplate":       c.Settings.TitleTemplate,
+		"groupBranchTemplate": c.Settings.GroupBranchTemplate,
+		"groupTitleTemplate":  c.Settings.GroupTitleTemplate,
+	}
+	for name, tmpl := range templates {
+		if tmpl != "" {
+			if _, err := template.New("").Parse(tmpl); err != nil {
+				return fmt.Errorf("invalid %s: %w", name, err)
+			}
 		}
 	}
 

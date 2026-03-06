@@ -13,18 +13,26 @@ import (
 )
 
 // UpdateBytes updates the targetRevision in raw YAML bytes, preserving formatting.
-// Supports multi-document YAML files.
+// Uses byte-level replacement to avoid re-encoding, which preserves comments,
+// indentation, quoting style, and blank lines.
 func UpdateBytes(data []byte, ref *manifest.ChartReference, newVersion string) ([]byte, error) {
 	docs, err := parseDocuments(data)
 	if err != nil {
 		return nil, err
 	}
 
-	if !findAndUpdateNode(docs, ref, newVersion) {
+	node, found := findTargetNode(docs, ref)
+	if !found {
 		return nil, fmt.Errorf("could not find %s with value %q", ref.YAMLPath, ref.TargetRevision)
 	}
 
-	return encodeDocuments(docs)
+	// Use the node's Line/Column to locate the value in the raw bytes and replace it.
+	result, err := replaceNodeValue(data, node, newVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func parseDocuments(data []byte) ([]*yaml.Node, error) {
@@ -46,7 +54,7 @@ func parseDocuments(data []byte) ([]*yaml.Node, error) {
 	return docs, nil
 }
 
-func findAndUpdateNode(docs []*yaml.Node, ref *manifest.ChartReference, newVersion string) bool {
+func findTargetNode(docs []*yaml.Node, ref *manifest.ChartReference) (*yaml.Node, bool) {
 	for _, doc := range docs {
 		if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
 			continue
@@ -58,25 +66,66 @@ func findAndUpdateNode(docs []*yaml.Node, ref *manifest.ChartReference, newVersi
 		if node.Value != ref.TargetRevision {
 			continue
 		}
-		node.Value = newVersion
-		return true
+		return node, true
 	}
-	return false
+	return nil, false
 }
 
-func encodeDocuments(docs []*yaml.Node) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	for _, doc := range docs {
-		if err := enc.Encode(doc); err != nil {
-			return nil, fmt.Errorf("encoding YAML: %w", err)
+// replaceNodeValue uses the yaml.Node's Line/Column to locate the value in raw bytes
+// and replaces just the value, preserving all original formatting.
+func replaceNodeValue(data []byte, node *yaml.Node, newValue string) ([]byte, error) {
+	// yaml.Node Line and Column are 1-based
+	targetLine := node.Line
+	targetCol := node.Column
+	oldValue := node.Value
+
+	// Find the byte offset of the target line and column
+	line := 1
+	offset := 0
+	for offset < len(data) && line < targetLine {
+		if data[offset] == '\n' {
+			line++
 		}
+		offset++
 	}
-	if err := enc.Close(); err != nil {
-		return nil, fmt.Errorf("closing YAML encoder: %w", err)
+	// Now offset points to the start of targetLine
+	// Advance to the target column (1-based)
+	colOffset := offset + targetCol - 1
+
+	if colOffset > len(data) {
+		return nil, fmt.Errorf("node position (line %d, col %d) out of bounds", targetLine, targetCol)
 	}
-	return buf.Bytes(), nil
+
+	// The node value might be quoted in the YAML. Check if the character at colOffset
+	// is a quote character.
+	valueStart := colOffset
+	var valueEnd int
+	if valueStart < len(data) && (data[valueStart] == '"' || data[valueStart] == '\'') {
+		// Quoted value: find the matching closing quote
+		quote := data[valueStart]
+		valueEnd = valueStart + 1
+		for valueEnd < len(data) && data[valueEnd] != quote {
+			if data[valueEnd] == '\\' && quote == '"' {
+				valueEnd++ // skip escaped char
+			}
+			valueEnd++
+		}
+		if valueEnd < len(data) {
+			valueEnd++ // include closing quote
+		}
+		// Replace with same quoting style
+		newValue = string(quote) + newValue + string(quote)
+	} else {
+		// Unquoted value: the value extends for the length of the old value
+		valueEnd = valueStart + len(oldValue)
+	}
+
+	result := make([]byte, 0, valueStart+len(newValue)+(len(data)-valueEnd))
+	result = append(result, data[:valueStart]...)
+	result = append(result, []byte(newValue)...)
+	result = append(result, data[valueEnd:]...)
+
+	return result, nil
 }
 
 // navigateToNode follows a dot-separated YAML path to find the target node.

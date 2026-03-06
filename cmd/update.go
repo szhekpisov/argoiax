@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/go-github/v68/github"
 	"github.com/spf13/cobra"
@@ -19,22 +21,34 @@ import (
 	"github.com/vertrost/argoiax/pkg/semver"
 	"github.com/vertrost/argoiax/pkg/updater"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/semaphore"
 )
 
-var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "Create PRs for outdated Helm chart versions",
-	Long:  `Update scans for outdated charts, modifies YAML files, and creates pull requests on GitHub.`,
-	RunE:  runUpdate,
-}
+func newUpdateCmd(root *rootOptions) *cobra.Command {
+	var (
+		chartFilter string
+		allowMajor  bool
+		maxPRs      int
+		githubToken string
+		repoSlug    string
+	)
 
-func init() {
-	updateCmd.Flags().StringVar(&opts.chartFilter, "chart", "", "only update a specific chart name")
-	updateCmd.Flags().BoolVar(&opts.allowMajor, "allow-major", false, "include major version updates")
-	updateCmd.Flags().IntVar(&opts.maxPRs, "max-prs", 0, "maximum number of PRs to create (0 = use config)")
-	updateCmd.Flags().StringVar(&opts.githubToken, "github-token", "", "GitHub token (or set GITHUB_TOKEN env var)")
-	updateCmd.Flags().StringVar(&opts.repoSlug, "repo", "", "GitHub repository (owner/repo)")
-	rootCmd.AddCommand(updateCmd)
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Create PRs for outdated Helm chart versions",
+		Long:  `Update scans for outdated charts, modifies YAML files, and creates pull requests on GitHub.`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runUpdate(cmd.Context(), root, chartFilter, allowMajor, maxPRs, githubToken, repoSlug)
+		},
+	}
+
+	cmd.Flags().StringVar(&chartFilter, "chart", "", "only update a specific chart name")
+	cmd.Flags().BoolVar(&allowMajor, "allow-major", false, "include major version updates")
+	cmd.Flags().IntVar(&maxPRs, "max-prs", 0, "maximum number of PRs to create (0 = use config)")
+	cmd.Flags().StringVar(&githubToken, "github-token", "", "GitHub token (or set GITHUB_TOKEN env var)")
+	cmd.Flags().StringVar(&repoSlug, "repo", "", "GitHub repository (owner/repo)")
+
+	return cmd
 }
 
 // resolvedUpdate holds a resolved chart update with all metadata needed for PR creation.
@@ -43,54 +57,53 @@ type resolvedUpdate struct {
 	info pr.UpdateInfo
 }
 
-func runUpdate(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
-	cfg, err := config.Load(opts.cfgFile)
+func runUpdate(ctx context.Context, root *rootOptions, chartFilter string, allowMajor bool, maxPRs int, githubToken, repoSlug string) error {
+	cfg, err := config.Load(root.cfgFile)
 	if err != nil {
 		return err
 	}
 
-	token, owner, repo, err := resolveCredentials()
+	token, owner, repo, err := resolveCredentials(githubToken, repoSlug, root.dryRun)
 	if err != nil {
 		return err
 	}
 
-	refs, err := scanRefs(cfg, opts.scanDir, opts.chartFilter)
+	refs, err := scanRefs(cfg, root.scanDir, chartFilter)
 	if err != nil {
 		return err
 	}
 
 	updates := resolveUpdates(ctx, cfg, refs,
 		registry.NewFactory(cfg, token),
-		releasenotes.NewOrchestrator(cfg.Release, token))
+		releasenotes.NewOrchestrator(cfg.Release, token),
+		allowMajor)
 
 	if len(updates) == 0 {
-		if !opts.dryRun {
+		if !root.dryRun {
 			fmt.Println("No updates to create PRs for.")
 		}
 		return nil
 	}
 
-	if opts.dryRun {
+	if root.dryRun {
 		printDryRun(updates)
 		return nil
 	}
 
-	return createPRs(ctx, cfg, token, owner, repo, updates)
+	return createPRs(ctx, cfg, token, owner, repo, updates, maxPRs)
 }
 
-func resolveCredentials() (token, owner, repo string, err error) {
-	token = opts.githubToken
+func resolveCredentials(githubToken, repoSlug string, dryRun bool) (token, owner, repo string, err error) {
+	token = githubToken
 	if token == "" {
 		token = registry.GetGitHubToken()
 	}
-	if token == "" && !opts.dryRun {
+	if token == "" && !dryRun {
 		return "", "", "", errors.New("GitHub token required (use --github-token or set GITHUB_TOKEN)")
 	}
 
-	owner, repo, err = resolveRepo(opts.repoSlug)
-	if err != nil && !opts.dryRun {
+	owner, repo, err = resolveRepo(repoSlug)
+	if err != nil && !dryRun {
 		return "", "", "", err
 	}
 	return token, owner, repo, nil
@@ -107,13 +120,15 @@ func printDryRun(updates []resolvedUpdate) {
 	}
 }
 
-func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo string, updates []resolvedUpdate) error {
+func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo string, updates []resolvedUpdate, maxPRs int) error {
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
+	tc.Timeout = 60 * time.Second
+	tc.Transport = &registry.RetryTransport{Base: tc.Transport, MaxRetries: 3}
 	ghClient := github.NewClient(tc)
 	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, &cfg.Settings)
 
-	maxPRCount := opts.maxPRs
+	maxPRCount := maxPRs
 	if maxPRCount == 0 {
 		maxPRCount = cfg.Settings.MaxOpenPRs
 	}
@@ -140,60 +155,82 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	return nil
 }
 
-// resolveUpdates resolves version updates for all refs, fetches release notes, and detects breaking changes.
-func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.ChartReference, factory *registry.Factory, notesOrch *releasenotes.Orchestrator) []resolvedUpdate {
+// resolveUpdates resolves version updates for all refs concurrently, fetches release notes, and detects breaking changes.
+func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.ChartReference, factory registry.FactoryInterface, notesOrch *releasenotes.Orchestrator, allowMajor bool) []resolvedUpdate {
+	const maxConcurrency = 10
+	sem := semaphore.NewWeighted(maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	var updates []resolvedUpdate
 
 	for i := range refs {
-		ref := &refs[i]
-		latest, allVersions, chartCfg, err := resolveLatest(ctx, factory, cfg, ref)
-		if err != nil {
-			slog.Error("failed to resolve latest version", "chart", ref.ChartName, "error", err)
-			continue
-		}
+		wg.Add(1)
+		go func(ref *manifest.ChartReference) {
+			defer wg.Done()
+			if err := sem.Acquire(ctx, 1); err != nil {
+				slog.Error("failed to acquire semaphore", "chart", ref.ChartName, "error", err)
+				return
+			}
+			defer sem.Release(1)
 
-		if latest == ref.TargetRevision {
-			continue
-		}
-
-		isMajor := semver.IsMajorBump(ref.TargetRevision, latest)
-		if isMajor && !opts.allowMajor {
-			slog.Info("skipping major update", "chart", ref.ChartName, "current", ref.TargetRevision, "latest", latest)
-			continue
-		}
-
-		slog.Info("update available", "chart", ref.ChartName, "current", ref.TargetRevision, "latest", latest)
-
-		// Fetch release notes
-		var versionsToFetch []string
-		if cfg.Release.IncludeIntermediate {
-			versionsToFetch = semver.VersionsBetween(allVersions, ref.TargetRevision, latest)
-		}
-		versionsToFetch = append(versionsToFetch, latest)
-		notes := notesOrch.FetchNotes(ctx, ref.ChartName, ref.RepoURL, versionsToFetch, chartCfg)
-
-		// Detect breaking changes
-		breakingResult := semver.DetectBreaking(ref.TargetRevision, latest, notes.CombinedBody())
-
-		updates = append(updates, resolvedUpdate{
-			ref: *ref,
-			info: pr.UpdateInfo{
-				ChartName:       ref.ChartName,
-				OldVersion:      ref.TargetRevision,
-				NewVersion:      latest,
-				FilePath:        ref.FilePath,
-				RepoURL:         ref.RepoURL,
-				IsBreaking:      breakingResult.IsBreaking,
-				BreakingReasons: breakingResult.Reasons,
-				ReleaseNotes:    notes,
-			},
-		})
+			u, ok := resolveOneUpdate(ctx, cfg, ref, factory, notesOrch, allowMajor)
+			if !ok {
+				return
+			}
+			mu.Lock()
+			updates = append(updates, u)
+			mu.Unlock()
+		}(&refs[i])
 	}
 
+	wg.Wait()
 	return updates
 }
 
-// createPerChartPRs creates one PR per chart update (existing behavior).
+func resolveOneUpdate(ctx context.Context, cfg *config.Config, ref *manifest.ChartReference, factory registry.FactoryInterface, notesOrch *releasenotes.Orchestrator, allowMajor bool) (resolvedUpdate, bool) {
+	latest, allVersions, chartCfg, err := resolveLatest(ctx, factory, cfg, ref)
+	if err != nil {
+		slog.Error("failed to resolve latest version", "chart", ref.ChartName, "error", err)
+		return resolvedUpdate{}, false
+	}
+
+	if latest == ref.TargetRevision {
+		return resolvedUpdate{}, false
+	}
+
+	isMajor := semver.IsMajorBump(ref.TargetRevision, latest)
+	if isMajor && !allowMajor {
+		slog.Info("skipping major update", "chart", ref.ChartName, "current", ref.TargetRevision, "latest", latest)
+		return resolvedUpdate{}, false
+	}
+
+	slog.Info("update available", "chart", ref.ChartName, "current", ref.TargetRevision, "latest", latest)
+
+	var versionsToFetch []string
+	if cfg.Release.IncludeIntermediate {
+		versionsToFetch = semver.VersionsBetween(allVersions, ref.TargetRevision, latest)
+	}
+	versionsToFetch = append(versionsToFetch, latest)
+	notes := notesOrch.FetchNotes(ctx, ref.ChartName, ref.RepoURL, versionsToFetch, chartCfg)
+
+	breakingResult := semver.DetectBreaking(ref.TargetRevision, latest, notes.CombinedBody())
+
+	return resolvedUpdate{
+		ref: *ref,
+		info: pr.UpdateInfo{
+			ChartName:       ref.ChartName,
+			OldVersion:      ref.TargetRevision,
+			NewVersion:      latest,
+			FilePath:        ref.FilePath,
+			RepoURL:         ref.RepoURL,
+			IsBreaking:      breakingResult.IsBreaking,
+			BreakingReasons: breakingResult.Reasons,
+			ReleaseNotes:    notes,
+		},
+	}, true
+}
+
+// createPerChartPRs creates one PR per chart update.
 func createPerChartPRs(ctx context.Context, settings *config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
 	prsCreated := 0
 
@@ -203,7 +240,6 @@ func createPerChartPRs(ctx context.Context, settings *config.Settings, updates [
 			break
 		}
 
-		// Check for existing PR
 		branch, err := pr.RenderTemplate(settings.BranchTemplate, updates[i].info)
 		if err != nil {
 			slog.Error("failed to render branch template", "chart", updates[i].info.ChartName, "error", err)
@@ -218,7 +254,6 @@ func createPerChartPRs(ctx context.Context, settings *config.Settings, updates [
 			continue
 		}
 
-		// Read and update the file
 		updatedData, err := applyFileUpdates([]resolvedUpdate{updates[i]})
 		if err != nil {
 			slog.Error("failed to apply file update", "chart", updates[i].info.ChartName, "error", err)
@@ -298,7 +333,6 @@ func createPerFilePRs(ctx context.Context, settings *config.Settings, updates []
 			Files:   []pr.FileUpdate{{FilePath: filePath}},
 		}
 
-		// Check for existing PR
 		branch, err := pr.RenderTemplate(settings.GroupBranchTemplate, pr.NewGroupTemplateData(group))
 		if err != nil {
 			slog.Error("failed to render group branch template", "file", filePath, "error", err)
@@ -314,7 +348,6 @@ func createPerFilePRs(ctx context.Context, settings *config.Settings, updates []
 			continue
 		}
 
-		// Apply chained updates to the file
 		updatedContent, err := applyFileUpdates(fileUpdates)
 		if err != nil {
 			slog.Error("failed to apply file updates", "file", filePath, "error", err)
@@ -349,7 +382,6 @@ func createBatchPR(ctx context.Context, settings *config.Settings, updates []res
 		Files:   files,
 	}
 
-	// Check for existing PR
 	branch, err := pr.RenderTemplate(settings.GroupBranchTemplate, pr.NewGroupTemplateData(group))
 	if err != nil {
 		return 0, fmt.Errorf("rendering group branch template: %w", err)
@@ -364,7 +396,6 @@ func createBatchPR(ctx context.Context, settings *config.Settings, updates []res
 		return 0, nil
 	}
 
-	// Apply chained updates per file
 	for i, filePath := range fileKeys {
 		updatedContent, err := applyFileUpdates(groups[filePath])
 		if err != nil {

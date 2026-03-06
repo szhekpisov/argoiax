@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/vertrost/argoiax/pkg/config"
 	"github.com/vertrost/argoiax/pkg/registry"
@@ -18,10 +17,10 @@ type ArtifactHubFetcher struct {
 	client *http.Client
 }
 
-// NewArtifactHubFetcher creates a new ArtifactHubFetcher.
-func NewArtifactHubFetcher() *ArtifactHubFetcher {
+// NewArtifactHubFetcher creates a new ArtifactHubFetcher with the given HTTP client.
+func NewArtifactHubFetcher(client *http.Client) *ArtifactHubFetcher {
 	return &ArtifactHubFetcher{
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: client,
 	}
 }
 

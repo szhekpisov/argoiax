@@ -35,6 +35,7 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info *UpdateInfo, fileCont
 	if err != nil {
 		return nil, fmt.Errorf("rendering branch template: %w", err)
 	}
+	branch = SanitizeBranchName(branch)
 
 	if err := g.createBranch(ctx, branch, baseBranch); err != nil {
 		return nil, err
@@ -65,6 +66,7 @@ func (g *GitHubCreator) CreateGroupPR(ctx context.Context, group UpdateGroup, ba
 	if err != nil {
 		return nil, fmt.Errorf("rendering group branch template: %w", err)
 	}
+	branch = SanitizeBranchName(branch)
 
 	if err := g.createBranch(ctx, branch, baseBranch); err != nil {
 		return nil, err

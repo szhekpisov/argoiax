@@ -100,6 +100,90 @@ spec:
 	}
 }
 
+func TestUpdateBytes_Preserves4SpaceIndentAndComments(t *testing.T) {
+	input := `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+    name: cert-manager  # application name
+spec:
+    source:
+        repoURL: https://charts.jetstack.io
+        chart: cert-manager
+        targetRevision: 1.13.2 # pinned version
+    # destination config
+    destination:
+        server: https://kubernetes.default.svc
+`
+
+	ref := manifest.ChartReference{
+		ChartName:      "cert-manager",
+		TargetRevision: "1.13.2",
+		YAMLPath:       "spec.source.targetRevision",
+		SourceIndex:    -1,
+	}
+
+	result, err := UpdateBytes([]byte(input), &ref, "1.14.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(result)
+
+	// Version should be updated
+	if !strings.Contains(output, "1.14.1") {
+		t.Error("expected output to contain new version 1.14.1")
+	}
+	if strings.Contains(output, "1.13.2") {
+		t.Error("expected output to not contain old version 1.13.2")
+	}
+
+	// 4-space indentation must be preserved
+	if !strings.Contains(output, "    name: cert-manager") {
+		t.Error("expected 4-space indentation to be preserved")
+	}
+	if !strings.Contains(output, "        targetRevision: 1.14.1") {
+		t.Error("expected 4-space indentation at targetRevision")
+	}
+
+	// Comments must be preserved
+	if !strings.Contains(output, "# pinned version") {
+		t.Error("expected inline comment to be preserved")
+	}
+	if !strings.Contains(output, "# application name") {
+		t.Error("expected inline comment on name to be preserved")
+	}
+	if !strings.Contains(output, "# destination config") {
+		t.Error("expected standalone comment to be preserved")
+	}
+}
+
+func TestUpdateBytes_QuotedVersion(t *testing.T) {
+	input := `apiVersion: argoproj.io/v1alpha1
+kind: Application
+spec:
+  source:
+    chart: test
+    targetRevision: "1.0.0"
+`
+
+	ref := manifest.ChartReference{
+		ChartName:      "test",
+		TargetRevision: "1.0.0",
+		YAMLPath:       "spec.source.targetRevision",
+		SourceIndex:    -1,
+	}
+
+	result, err := UpdateBytes([]byte(input), &ref, "2.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(result)
+	if !strings.Contains(output, `"2.0.0"`) {
+		t.Errorf("expected quoted version in output, got: %s", output)
+	}
+}
+
 func TestNavigateToNode_InvalidPath(t *testing.T) {
 	input := `spec:
   source:

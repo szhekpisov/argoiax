@@ -19,10 +19,10 @@ type ChangelogFetcher struct {
 	client *http.Client
 }
 
-// NewChangelogFetcher creates a new ChangelogFetcher.
-func NewChangelogFetcher(token string) *ChangelogFetcher {
+// NewChangelogFetcher creates a new ChangelogFetcher with the given HTTP client.
+func NewChangelogFetcher(client *http.Client) *ChangelogFetcher {
 	return &ChangelogFetcher{
-		client: registry.NewTokenClient(token),
+		client: client,
 	}
 }
 

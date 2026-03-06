@@ -146,6 +146,32 @@ func TestValidate_InvalidReleaseSource(t *testing.T) {
 	}
 }
 
+func TestValidate_InvalidBranchTemplate(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.BranchTemplate = "{{.Broken"
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("expected validation error for invalid branchTemplate")
+	}
+}
+
+func TestValidate_InvalidTitleTemplate(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.TitleTemplate = "{{.Broken"
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("expected validation error for invalid titleTemplate")
+	}
+}
+
+func TestValidate_ValidTemplates(t *testing.T) {
+	cfg := DefaultConfig()
+	err := cfg.Validate()
+	if err != nil {
+		t.Errorf("unexpected validation error: %v", err)
+	}
+}
+
 func TestLookupChart(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Charts = map[string]Chart{

@@ -3,10 +3,13 @@ package releasenotes
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/vertrost/argoiax/pkg/registry"
 )
 
 // Notes contains aggregated release notes for a chart update.
@@ -55,18 +58,24 @@ type Orchestrator struct {
 	cfg      config.ReleaseNotesConfig
 }
 
-// NewOrchestrator creates a new release notes orchestrator.
+// NewOrchestrator creates a new release notes orchestrator with a shared HTTP client.
 func NewOrchestrator(cfg config.ReleaseNotesConfig, githubToken string) *Orchestrator {
-	var fetchers []Fetcher
+	var client *http.Client
+	if githubToken != "" {
+		client = registry.NewTokenClient(githubToken)
+	} else {
+		client = &http.Client{Timeout: 30 * time.Second}
+	}
 
+	var fetchers []Fetcher
 	for _, src := range cfg.Sources {
 		switch src {
 		case config.SourceGitHubReleases:
-			fetchers = append(fetchers, NewGitHubFetcher(githubToken))
+			fetchers = append(fetchers, NewGitHubFetcher(client))
 		case config.SourceArtifactHub:
-			fetchers = append(fetchers, NewArtifactHubFetcher())
+			fetchers = append(fetchers, NewArtifactHubFetcher(client))
 		case config.SourceChangelog:
-			fetchers = append(fetchers, NewChangelogFetcher(githubToken))
+			fetchers = append(fetchers, NewChangelogFetcher(client))
 		}
 	}
 
