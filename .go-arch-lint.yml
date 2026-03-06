@@ -1,7 +1,25 @@
 version: 3
 
 allow:
-  depOnAnyVendor: true
+  depOnAnyVendor: false
+
+vendors:
+  cobra:
+    in: github.com/spf13/cobra
+  go-github:
+    in: github.com/google/go-github/**
+  oauth2:
+    in:
+      - golang.org/x/oauth2
+      - golang.org/x/oauth2/**
+  sync:
+    in: golang.org/x/sync/**
+  yaml:
+    in: gopkg.in/yaml.v3
+  masterminds-semver:
+    in: github.com/Masterminds/semver/**
+  go-containerregistry:
+    in: github.com/google/go-containerregistry/**
 
 components:
   main:
@@ -39,19 +57,31 @@ deps:
       - releasenotes
       - updater
       - pr
+    canUse:
+      - cobra
+      - go-github
+      - oauth2
+      - sync
   config:
-    anyVendorDeps: true
+    canUse:
+      - yaml
   manifest:
-    anyVendorDeps: true
+    canUse:
+      - yaml
   output:
     anyVendorDeps: true
   semver:
-    anyVendorDeps: true
+    canUse:
+      - masterminds-semver
   registry:
     mayDependOn:
       - config
       - manifest
       - semver
+    canUse:
+      - go-containerregistry
+      - sync
+      - yaml
   releasenotes:
     mayDependOn:
       - config
@@ -59,7 +89,11 @@ deps:
   updater:
     mayDependOn:
       - manifest
+    canUse:
+      - yaml
   pr:
     mayDependOn:
       - config
       - releasenotes
+    canUse:
+      - go-github
