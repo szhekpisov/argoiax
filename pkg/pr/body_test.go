@@ -10,7 +10,7 @@ import (
 func TestRenderPRBody_Basic(t *testing.T) {
 	info := UpdateInfo{
 		ChartName:  "cert-manager",
-		RepoURL:   "https://charts.jetstack.io",
+		RepoURL:    "https://charts.jetstack.io",
 		OldVersion: "1.13.2",
 		NewVersion: "1.14.1",
 		IsBreaking: false,
@@ -35,7 +35,7 @@ func TestRenderPRBody_Basic(t *testing.T) {
 func TestRenderPRBody_Breaking(t *testing.T) {
 	info := UpdateInfo{
 		ChartName:       "grafana",
-		RepoURL:        "https://grafana.github.io/helm-charts",
+		RepoURL:         "https://grafana.github.io/helm-charts",
 		OldVersion:      "7.0.1",
 		NewVersion:      "8.2.0",
 		IsBreaking:      true,
@@ -64,7 +64,7 @@ func TestRenderPRBody_Breaking(t *testing.T) {
 func TestRenderPRBody_WithReleaseNotes(t *testing.T) {
 	info := UpdateInfo{
 		ChartName:  "cert-manager",
-		RepoURL:   "https://charts.jetstack.io",
+		RepoURL:    "https://charts.jetstack.io",
 		OldVersion: "1.13.2",
 		NewVersion: "1.14.1",
 		ReleaseNotes: &releasenotes.Notes{

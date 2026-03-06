@@ -21,9 +21,9 @@ func TestDetectBreaking_MinorBump(t *testing.T) {
 
 func TestDetectBreaking_ContentBased(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    string
-		want    bool
+		name string
+		body string
+		want bool
 	}{
 		{"breaking change keyword", "BREAKING CHANGE: removed old API", true},
 		{"removed parameter", "The deprecated parameter has been removed", true},

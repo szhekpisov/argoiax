@@ -30,7 +30,7 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
-func runScan(cmd *cobra.Command, args []string) error {
+func runScan(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
 	cfg, err := config.Load(opts.cfgFile)
@@ -117,4 +117,3 @@ func checkVersions(ctx context.Context, cfg *config.Config, refs []manifest.Char
 	wg.Wait()
 	return results
 }
-

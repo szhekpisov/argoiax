@@ -87,5 +87,3 @@ func VersionsBetween(versions []string, current, latest string) []string {
 	}
 	return result
 }
-
-

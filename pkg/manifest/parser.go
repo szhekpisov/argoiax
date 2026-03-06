@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,59 +19,64 @@ func Parse(r io.Reader, filePath string) ([]ChartReference, error) {
 	for {
 		var doc yaml.Node
 		if err := decoder.Decode(&doc); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, fmt.Errorf("decoding YAML in %s: %w", filePath, err)
 		}
 
-		if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
-			continue
-		}
-
-		root := doc.Content[0]
-		if root.Kind != yaml.MappingNode {
-			continue
-		}
-
-		kind := getMapValue(root, "kind")
-		if kind == "" {
-			continue
-		}
-
-		apiVersion := getMapValue(root, "apiVersion")
-		if !strings.HasPrefix(apiVersion, "argoproj.io/") {
-			continue
-		}
-
-		switch kind {
-		case "Application":
-			specNode := getMapNode(root, "spec")
-			if specNode == nil {
-				continue
-			}
-			extracted := extractFromSpec(specNode, filePath, "spec", false)
-			refs = append(refs, extracted...)
-
-		case "ApplicationSet":
-			specNode := getMapNode(root, "spec")
-			if specNode == nil {
-				continue
-			}
-			templateNode := getMapNode(specNode, "template")
-			if templateNode == nil {
-				continue
-			}
-			templateSpecNode := getMapNode(templateNode, "spec")
-			if templateSpecNode == nil {
-				continue
-			}
-			extracted := extractFromSpec(templateSpecNode, filePath, "spec.template.spec", true)
-			refs = append(refs, extracted...)
-		}
+		refs = append(refs, extractFromDoc(&doc, filePath)...)
 	}
 
 	return refs, nil
+}
+
+func extractFromDoc(doc *yaml.Node, filePath string) []ChartReference {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return nil
+	}
+
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	kind := getMapValue(root, "kind")
+	apiVersion := getMapValue(root, "apiVersion")
+	if kind == "" || !strings.HasPrefix(apiVersion, "argoproj.io/") {
+		return nil
+	}
+
+	switch kind {
+	case "Application":
+		specNode := getMapNode(root, "spec")
+		if specNode == nil {
+			return nil
+		}
+		return extractFromSpec(specNode, filePath, "spec", false)
+
+	case "ApplicationSet":
+		return extractFromAppSet(root, filePath)
+
+	default:
+		return nil
+	}
+}
+
+func extractFromAppSet(root *yaml.Node, filePath string) []ChartReference {
+	specNode := getMapNode(root, "spec")
+	if specNode == nil {
+		return nil
+	}
+	templateNode := getMapNode(specNode, "template")
+	if templateNode == nil {
+		return nil
+	}
+	templateSpecNode := getMapNode(templateNode, "spec")
+	if templateSpecNode == nil {
+		return nil
+	}
+	return extractFromSpec(templateSpecNode, filePath, "spec.template.spec", true)
 }
 
 func extractFromSpec(specNode *yaml.Node, filePath, pathPrefix string, isAppSet bool) []ChartReference {
@@ -106,28 +112,8 @@ func extractFromSource(sourceNode *yaml.Node, filePath, yamlPath string, sourceI
 	repoURL := getMapValue(sourceNode, "repoURL")
 	targetRevision := getMapValue(sourceNode, "targetRevision")
 	chart := getMapValue(sourceNode, "chart")
-	ref := getMapValue(sourceNode, "ref")
 
-	// Skip ref-only sources (values references)
-	if ref != "" && chart == "" {
-		slog.Debug("skipping ref-only source", "file", filePath, "ref", ref)
-		return ChartReference{}, false
-	}
-
-	// Skip if no targetRevision
-	if targetRevision == "" {
-		return ChartReference{}, false
-	}
-
-	// Skip Go template expressions in ApplicationSets
-	if isAppSet && isTemplateExpression(targetRevision) {
-		slog.Debug("skipping template expression", "file", filePath, "targetRevision", targetRevision)
-		return ChartReference{}, false
-	}
-
-	// Skip non-semver targetRevision (HEAD, branch names, etc.)
-	if !looksLikeSemver(targetRevision) {
-		slog.Debug("skipping non-semver targetRevision", "file", filePath, "targetRevision", targetRevision)
+	if !shouldProcess(sourceNode, filePath, targetRevision, chart, isAppSet) {
 		return ChartReference{}, false
 	}
 
@@ -139,11 +125,35 @@ func extractFromSource(sourceNode *yaml.Node, filePath, yamlPath string, sourceI
 		SourceIndex:      sourceIndex,
 		IsApplicationSet: isAppSet,
 	}
+	classifySource(&cr, sourceNode, repoURL, chart)
 
+	return cr, true
+}
+
+func shouldProcess(sourceNode *yaml.Node, filePath, targetRevision, chart string, isAppSet bool) bool {
+	ref := getMapValue(sourceNode, "ref")
+	if ref != "" && chart == "" {
+		slog.Debug("skipping ref-only source", "file", filePath, "ref", ref)
+		return false
+	}
+	if targetRevision == "" {
+		return false
+	}
+	if isAppSet && isTemplateExpression(targetRevision) {
+		slog.Debug("skipping template expression", "file", filePath, "targetRevision", targetRevision)
+		return false
+	}
+	if !looksLikeSemver(targetRevision) {
+		slog.Debug("skipping non-semver targetRevision", "file", filePath, "targetRevision", targetRevision)
+		return false
+	}
+	return true
+}
+
+func classifySource(cr *ChartReference, sourceNode *yaml.Node, repoURL, chart string) {
 	switch {
 	case strings.HasPrefix(repoURL, "oci://"):
 		cr.Type = SourceTypeOCI
-		// For OCI, chart name is the last path segment of the URL
 		parts := strings.Split(strings.TrimPrefix(repoURL, "oci://"), "/")
 		if len(parts) > 0 {
 			cr.ChartName = parts[len(parts)-1]
@@ -159,8 +169,6 @@ func extractFromSource(sourceNode *yaml.Node, filePath, yamlPath string, sourceI
 			cr.ChartName = parts[len(parts)-1]
 		}
 	}
-
-	return cr, true
 }
 
 func isTemplateExpression(s string) bool {
@@ -201,10 +209,10 @@ func getMapNode(node *yaml.Node, key string) *yaml.Node {
 
 // ParseFile reads and parses a file at the given path.
 func ParseFile(filePath string) ([]ChartReference, error) {
-	f, err := os.Open(filePath)
+	f, err := os.Open(filePath) //nolint:gosec // path comes from scanRefs file discovery
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return Parse(f, filePath)
 }

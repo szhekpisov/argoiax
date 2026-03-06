@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -42,7 +43,7 @@ type resolvedUpdate struct {
 	info pr.UpdateInfo
 }
 
-func runUpdate(cmd *cobra.Command, args []string) error {
+func runUpdate(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
 	cfg, err := config.Load(opts.cfgFile)
@@ -50,18 +51,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Resolve token
-	token := opts.githubToken
-	if token == "" {
-		token = registry.GetGitHubToken()
-	}
-	if token == "" && !opts.dryRun {
-		return fmt.Errorf("GitHub token required (use --github-token or set GITHUB_TOKEN)")
-	}
-
-	// Resolve repo slug
-	owner, repo, err := resolveRepo(opts.repoSlug)
-	if err != nil && !opts.dryRun {
+	token, owner, repo, err := resolveCredentials()
+	if err != nil {
 		return err
 	}
 
@@ -70,16 +61,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	factory := registry.NewFactory(cfg, token)
-	notesOrch := releasenotes.NewOrchestrator(cfg.Release, token)
-
-	maxPRCount := opts.maxPRs
-	if maxPRCount == 0 {
-		maxPRCount = cfg.Settings.MaxOpenPRs
-	}
-
-	// Resolution phase: resolve all updates
-	updates := resolveUpdates(ctx, cfg, refs, factory, notesOrch)
+	updates := resolveUpdates(ctx, cfg, refs,
+		registry.NewFactory(cfg, token),
+		releasenotes.NewOrchestrator(cfg.Release, token))
 
 	if len(updates) == 0 {
 		if !opts.dryRun {
@@ -88,37 +72,64 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Dry-run: print all resolved updates and return
 	if opts.dryRun {
-		for _, u := range updates {
-			status := output.StatusUpdateAvailable
-			if u.info.IsBreaking {
-				status = output.StatusBreaking
-			}
-			fmt.Printf("[DRY-RUN] Would update %s in %s: %s → %s (%s)\n",
-				u.info.ChartName, u.info.FilePath, u.info.OldVersion, u.info.NewVersion, status)
-		}
+		printDryRun(updates)
 		return nil
 	}
 
-	// Create PR creator
+	return createPRs(ctx, cfg, token, owner, repo, updates)
+}
+
+func resolveCredentials() (token, owner, repo string, err error) {
+	token = opts.githubToken
+	if token == "" {
+		token = registry.GetGitHubToken()
+	}
+	if token == "" && !opts.dryRun {
+		return "", "", "", errors.New("GitHub token required (use --github-token or set GITHUB_TOKEN)")
+	}
+
+	owner, repo, err = resolveRepo(opts.repoSlug)
+	if err != nil && !opts.dryRun {
+		return "", "", "", err
+	}
+	return token, owner, repo, nil
+}
+
+func printDryRun(updates []resolvedUpdate) {
+	for _, u := range updates {
+		status := output.StatusUpdateAvailable
+		if u.info.IsBreaking {
+			status = output.StatusBreaking
+		}
+		fmt.Printf("[DRY-RUN] Would update %s in %s: %s → %s (%s)\n",
+			u.info.ChartName, u.info.FilePath, u.info.OldVersion, u.info.NewVersion, status)
+	}
+}
+
+func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo string, updates []resolvedUpdate) error {
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
 	ghClient := github.NewClient(tc)
 	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, cfg.Settings)
 
-	// Strategy dispatch
+	maxPRCount := opts.maxPRs
+	if maxPRCount == 0 {
+		maxPRCount = cfg.Settings.MaxOpenPRs
+	}
+
 	var prsCreated int
+	var err error
 	switch cfg.Settings.PRStrategy {
 	case config.StrategyPerFile:
-		prsCreated, err = createPerFilePRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
+		prsCreated = createPerFilePRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
 	case config.StrategyBatch:
 		prsCreated, err = createBatchPR(ctx, cfg.Settings, updates, prCreator)
-	default: // per-chart
-		prsCreated, err = createPerChartPRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+	default:
+		prsCreated = createPerChartPRs(ctx, cfg.Settings, updates, prCreator, maxPRCount)
 	}
 
 	if prsCreated == 0 {
@@ -126,7 +137,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("\nCreated %d PR(s).\n", prsCreated)
 	}
-
 	return nil
 }
 
@@ -183,7 +193,7 @@ func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.Cha
 }
 
 // createPerChartPRs creates one PR per chart update (existing behavior).
-func createPerChartPRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) (int, error) {
+func createPerChartPRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
 	prsCreated := 0
 
 	for _, u := range updates {
@@ -224,7 +234,7 @@ func createPerChartPRs(ctx context.Context, settings config.Settings, updates []
 		prsCreated++
 	}
 
-	return prsCreated, nil
+	return prsCreated
 }
 
 // groupByFile groups resolved updates by file path, returning both the groups and ordered keys in a single pass.
@@ -244,7 +254,7 @@ func groupByFile(updates []resolvedUpdate) (map[string][]resolvedUpdate, []strin
 // applyFileUpdates reads a file and applies all chart updates in sequence, returning the final content.
 func applyFileUpdates(fileUpdates []resolvedUpdate) ([]byte, error) {
 	if len(fileUpdates) == 0 {
-		return nil, fmt.Errorf("no updates to apply")
+		return nil, errors.New("no updates to apply")
 	}
 
 	data, err := os.ReadFile(fileUpdates[0].ref.FilePath)
@@ -272,7 +282,7 @@ func collectInfos(updates []resolvedUpdate) []pr.UpdateInfo {
 }
 
 // createPerFilePRs creates one PR per file, grouping all chart updates within that file.
-func createPerFilePRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) (int, error) {
+func createPerFilePRs(ctx context.Context, settings config.Settings, updates []resolvedUpdate, prCreator pr.Creator, maxPRCount int) int {
 	groups, fileKeys := groupByFile(updates)
 	prsCreated := 0
 
@@ -323,7 +333,7 @@ func createPerFilePRs(ctx context.Context, settings config.Settings, updates []r
 		prsCreated++
 	}
 
-	return prsCreated, nil
+	return prsCreated
 }
 
 // createBatchPR creates a single PR for all chart updates across all files.
@@ -377,7 +387,7 @@ func resolveRepo(slug string) (string, string, error) {
 		slug = os.Getenv("GITHUB_REPOSITORY")
 	}
 	if slug == "" {
-		return "", "", fmt.Errorf("repository not specified (use --repo or set GITHUB_REPOSITORY)")
+		return "", "", errors.New("repository not specified (use --repo or set GITHUB_REPOSITORY)")
 	}
 
 	parts := strings.SplitN(slug, "/", 2)

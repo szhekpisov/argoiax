@@ -26,8 +26,10 @@ func NewChangelogFetcher(token string) *ChangelogFetcher {
 	}
 }
 
+// Name returns the source name.
 func (f *ChangelogFetcher) Name() string { return config.SourceChangelog }
 
+// Fetch retrieves release notes from a CHANGELOG.md file in the given repo.
 func (f *ChangelogFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
 	content, branch, err := f.fetchChangelogContent(ctx, repo)
 	if err != nil {
@@ -78,7 +80,7 @@ func (f *ChangelogFetcher) tryChangelogFile(ctx context.Context, repo GitHubRepo
 		return "", err
 	}
 
-	resp, err := f.client.Do(req)
+	resp, err := f.client.Do(req) //nolint:bodyclose // closed via registry.DrainBody
 	if err != nil {
 		return "", err
 	}

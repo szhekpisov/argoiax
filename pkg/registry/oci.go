@@ -22,6 +22,7 @@ func NewOCIRegistry(cfg *config.Config) *OCIRegistry {
 	return &OCIRegistry{cfg: cfg}
 }
 
+// ListVersions returns all available tags for a chart from an OCI registry.
 func (r *OCIRegistry) ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error) {
 	// Strip oci:// prefix to get the repository reference
 	repoRef := strings.TrimPrefix(ref.RepoURL, "oci://")
@@ -40,4 +41,3 @@ func (r *OCIRegistry) ListVersions(ctx context.Context, ref manifest.ChartRefere
 
 	return tags, nil
 }
-

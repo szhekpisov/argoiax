@@ -29,7 +29,8 @@ func NewGitHubCreator(client *github.Client, owner, repo string, settings config
 	}
 }
 
-func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileContent []byte, baseBranch string) (*PRResult, error) {
+// CreatePR creates a pull request for a single chart update.
+func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileContent []byte, baseBranch string) (*Result, error) {
 	branch, err := RenderTemplate(g.settings.BranchTemplate, info)
 	if err != nil {
 		return nil, fmt.Errorf("rendering branch template: %w", err)
@@ -56,7 +57,8 @@ func (g *GitHubCreator) CreatePR(ctx context.Context, info UpdateInfo, fileConte
 	return g.submitPR(ctx, title, body, branch, baseBranch, labels)
 }
 
-func (g *GitHubCreator) CreateGroupPR(ctx context.Context, group UpdateGroup, baseBranch string) (*PRResult, error) {
+// CreateGroupPR creates a pull request for a group of chart updates.
+func (g *GitHubCreator) CreateGroupPR(ctx context.Context, group UpdateGroup, baseBranch string) (*Result, error) {
 	data := NewGroupTemplateData(group)
 
 	branch, err := RenderTemplate(g.settings.GroupBranchTemplate, data)
@@ -69,7 +71,7 @@ func (g *GitHubCreator) CreateGroupPR(ctx context.Context, group UpdateGroup, ba
 	}
 
 	for _, file := range group.Files {
-		commitMsg := fmt.Sprintf("chore(deps): update charts in %s", file.FilePath)
+		commitMsg := "chore(deps): update charts in " + file.FilePath
 		if err := g.commitFile(ctx, branch, file.FilePath, file.FileContent, commitMsg); err != nil {
 			g.deleteBranch(ctx, branch)
 			return nil, err
@@ -142,7 +144,7 @@ func (g *GitHubCreator) buildLabels(isBreaking bool) []string {
 }
 
 // submitPR creates the pull request, adds labels, and cleans up on failure.
-func (g *GitHubCreator) submitPR(ctx context.Context, title, body, branch, baseBranch string, labels []string) (*PRResult, error) {
+func (g *GitHubCreator) submitPR(ctx context.Context, title, body, branch, baseBranch string, labels []string) (*Result, error) {
 	pullRequest, _, err := g.client.PullRequests.Create(ctx, g.owner, g.repo, &github.NewPullRequest{
 		Title: &title,
 		Head:  &branch,
@@ -161,7 +163,7 @@ func (g *GitHubCreator) submitPR(ctx context.Context, title, body, branch, baseB
 		}
 	}
 
-	return &PRResult{
+	return &Result{
 		PRURL:    pullRequest.GetHTMLURL(),
 		PRNumber: pullRequest.GetNumber(),
 		Branch:   branch,
@@ -175,6 +177,7 @@ func (g *GitHubCreator) deleteBranch(ctx context.Context, branch string) {
 	}
 }
 
+// ExistingPR checks if an open PR already exists for the given branch.
 func (g *GitHubCreator) ExistingPR(ctx context.Context, branch string) (bool, error) {
 	prs, _, err := g.client.PullRequests.List(ctx, g.owner, g.repo, &github.PullRequestListOptions{
 		Head:  fmt.Sprintf("%s:%s", g.owner, branch),

@@ -12,7 +12,7 @@ func RenderPRBody(info UpdateInfo) string {
 	var b strings.Builder
 
 	// Opening line (Dependabot style)
-	b.WriteString(fmt.Sprintf("Bumps [%s](%s) from %s to %s.\n", info.ChartName, info.RepoURL, info.OldVersion, info.NewVersion))
+	fmt.Fprintf(&b, "Bumps [%s](%s) from %s to %s.\n", info.ChartName, info.RepoURL, info.OldVersion, info.NewVersion)
 
 	// Breaking change warning
 	if info.IsBreaking {
@@ -20,7 +20,7 @@ func RenderPRBody(info UpdateInfo) string {
 		if len(info.BreakingReasons) > 0 {
 			b.WriteString(">\n")
 			for _, reason := range info.BreakingReasons {
-				b.WriteString(fmt.Sprintf("> - %s\n", reason))
+				fmt.Fprintf(&b, "> - %s\n", reason)
 			}
 		}
 	}
@@ -34,7 +34,7 @@ func RenderPRBody(info UpdateInfo) string {
 	b.WriteString("\n<br />\n\n")
 	if info.IsBreaking {
 		if info.ReleaseNotes != nil && info.ReleaseNotes.SourceURL != "" {
-			b.WriteString(fmt.Sprintf("[![Breaking change](https://img.shields.io/badge/change-breaking-red)](%s)\n\n", info.ReleaseNotes.SourceURL))
+			fmt.Fprintf(&b, "[![Breaking change](https://img.shields.io/badge/change-breaking-red)](%s)\n\n", info.ReleaseNotes.SourceURL)
 		} else {
 			b.WriteString("![Breaking change](https://img.shields.io/badge/change-breaking-red)\n\n")
 		}
@@ -60,7 +60,7 @@ func RenderGroupPRBody(group UpdateGroup) string {
 	b.WriteString("| Chart | File | Version |\n")
 	b.WriteString("|-------|------|---------|\n")
 	for _, u := range group.Updates {
-		b.WriteString(fmt.Sprintf("| %s | `%s` | %s → %s |\n", u.ChartName, u.FilePath, u.OldVersion, u.NewVersion))
+		fmt.Fprintf(&b, "| %s | `%s` | %s → %s |\n", u.ChartName, u.FilePath, u.OldVersion, u.NewVersion)
 	}
 
 	// Breaking change warnings
@@ -73,9 +73,9 @@ func RenderGroupPRBody(group UpdateGroup) string {
 	if len(breakingUpdates) > 0 {
 		b.WriteString("\n> [!WARNING]\n> This PR contains **major version updates** that may include breaking changes:\n>\n")
 		for _, u := range breakingUpdates {
-			b.WriteString(fmt.Sprintf("> - **%s** %s → %s\n", u.ChartName, u.OldVersion, u.NewVersion))
+			fmt.Fprintf(&b, "> - **%s** %s → %s\n", u.ChartName, u.OldVersion, u.NewVersion)
 			for _, reason := range u.BreakingReasons {
-				b.WriteString(fmt.Sprintf(">   - %s\n", reason))
+				fmt.Fprintf(&b, ">   - %s\n", reason)
 			}
 		}
 	}
@@ -100,13 +100,13 @@ func RenderGroupPRBody(group UpdateGroup) string {
 
 // writeReleaseNotes writes a collapsible release notes section into the builder.
 func writeReleaseNotes(b *strings.Builder, chartName string, notes *releasenotes.Notes, summary string) {
-	b.WriteString(fmt.Sprintf("\n<details>\n<summary>%s</summary>\n", summary))
+	fmt.Fprintf(b, "\n<details>\n<summary>%s</summary>\n", summary)
 	if notes.SourceURL != "" {
-		b.WriteString(fmt.Sprintf("<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", notes.SourceURL, chartName))
+		fmt.Fprintf(b, "<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", notes.SourceURL, chartName)
 	}
 	b.WriteString("<blockquote>\n")
 	for _, entry := range notes.Entries {
-		b.WriteString(fmt.Sprintf("<h2>%s</h2>\n", entry.Version))
+		fmt.Fprintf(b, "<h2>%s</h2>\n", entry.Version)
 		b.WriteString(entry.Body)
 		b.WriteString("\n")
 	}

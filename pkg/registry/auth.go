@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -15,8 +14,8 @@ const defaultHTTPTimeout = 60 * time.Second
 // DrainBody reads any remaining data from body and closes it.
 // Use as: defer registry.DrainBody(resp.Body)
 func DrainBody(body io.ReadCloser) {
-	io.Copy(io.Discard, body)
-	body.Close()
+	_, _ = io.Copy(io.Discard, body)
+	_ = body.Close()
 }
 
 // AuthTransport adds authentication headers to HTTP requests.
@@ -27,12 +26,13 @@ type AuthTransport struct {
 	Token    string
 }
 
+// RoundTrip adds authentication headers and delegates to the base transport.
 func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	r := req.Clone(req.Context())
 	if t.Username != "" || t.Password != "" {
 		r.SetBasicAuth(t.Username, t.Password)
 	} else if t.Token != "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t.Token))
+		r.Header.Set("Authorization", "Bearer "+t.Token)
 	}
 	base := t.Base
 	if base == nil {

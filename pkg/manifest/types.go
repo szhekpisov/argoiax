@@ -3,6 +3,7 @@ package manifest
 // SourceType represents the type of Helm chart source.
 type SourceType int
 
+// Source type constants.
 const (
 	SourceTypeHTTP SourceType = iota
 	SourceTypeOCI

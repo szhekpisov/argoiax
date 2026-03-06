@@ -35,11 +35,12 @@ var rootCmd = &cobra.Command{
 	Long: `argoiax scans your GitOps repository for ArgoCD Application manifests,
 detects outdated Helm chart versions across HTTP, OCI, and Git repositories,
 fetches release notes with breaking change detection, and opens PRs for updates.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		setupLogging()
 	},
 }
 
+// Execute runs the root CLI command.
 func Execute() error {
 	return rootCmd.Execute()
 }

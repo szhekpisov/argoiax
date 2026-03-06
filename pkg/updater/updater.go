@@ -2,6 +2,7 @@ package updater
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -14,26 +15,38 @@ import (
 // UpdateBytes updates the targetRevision in raw YAML bytes, preserving formatting.
 // Supports multi-document YAML files.
 func UpdateBytes(data []byte, ref manifest.ChartReference, newVersion string) ([]byte, error) {
-	// Parse all documents
+	docs, err := parseDocuments(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if !findAndUpdateNode(docs, ref, newVersion) {
+		return nil, fmt.Errorf("could not find %s with value %q", ref.YAMLPath, ref.TargetRevision)
+	}
+
+	return encodeDocuments(docs)
+}
+
+func parseDocuments(data []byte) ([]*yaml.Node, error) {
 	var docs []*yaml.Node
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	for {
 		var doc yaml.Node
 		if err := dec.Decode(&doc); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, fmt.Errorf("parsing YAML: %w", err)
 		}
 		docs = append(docs, &doc)
 	}
-
 	if len(docs) == 0 {
-		return nil, fmt.Errorf("no YAML documents found")
+		return nil, errors.New("no YAML documents found")
 	}
+	return docs, nil
+}
 
-	// Try each document to find the target node
-	found := false
+func findAndUpdateNode(docs []*yaml.Node, ref manifest.ChartReference, newVersion string) bool {
 	for _, doc := range docs {
 		if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
 			continue
@@ -46,14 +59,12 @@ func UpdateBytes(data []byte, ref manifest.ChartReference, newVersion string) ([
 			continue
 		}
 		node.Value = newVersion
-		found = true
-		break
+		return true
 	}
+	return false
+}
 
-	if !found {
-		return nil, fmt.Errorf("could not find %s with value %q", ref.YAMLPath, ref.TargetRevision)
-	}
-
+func encodeDocuments(docs []*yaml.Node) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -62,8 +73,9 @@ func UpdateBytes(data []byte, ref manifest.ChartReference, newVersion string) ([
 			return nil, fmt.Errorf("encoding YAML: %w", err)
 		}
 	}
-	enc.Close()
-
+	if err := enc.Close(); err != nil {
+		return nil, fmt.Errorf("closing YAML encoder: %w", err)
+	}
 	return buf.Bytes(), nil
 }
 

@@ -1,3 +1,4 @@
+// Package main is the entry point for the argoiax CLI.
 package main
 
 import (

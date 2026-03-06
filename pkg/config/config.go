@@ -22,22 +22,25 @@ const (
 	SourceChangelog      = "changelog"
 )
 
+// Config is the top-level configuration for argoiax.
 type Config struct {
-	Version  int               `yaml:"version"`
-	ScanDirs []string          `yaml:"scanDirs"`
-	Ignore   []string          `yaml:"ignore"`
-	Charts   map[string]Chart  `yaml:"charts"`
-	Settings Settings          `yaml:"settings"`
-	Auth     Auth              `yaml:"auth"`
+	Version  int                `yaml:"version"`
+	ScanDirs []string           `yaml:"scanDirs"`
+	Ignore   []string           `yaml:"ignore"`
+	Charts   map[string]Chart   `yaml:"charts"`
+	Settings Settings           `yaml:"settings"`
+	Auth     Auth               `yaml:"auth"`
 	Release  ReleaseNotesConfig `yaml:"releaseNotes"`
 }
 
+// Chart holds per-chart configuration overrides.
 type Chart struct {
 	VersionConstraint string `yaml:"versionConstraint"`
 	GithubRepo        string `yaml:"githubRepo"`
 	TagPattern        string `yaml:"tagPattern"`
 }
 
+// Settings controls PR creation behavior and templates.
 type Settings struct {
 	PRStrategy          string   `yaml:"prStrategy"`
 	Labels              []string `yaml:"labels"`
@@ -50,22 +53,26 @@ type Settings struct {
 	AutoMergePatch      bool     `yaml:"autoMergePatch"`
 }
 
+// Auth holds authentication configuration for registries.
 type Auth struct {
 	HelmRepos     []HelmRepoAuth `yaml:"helmRepos"`
 	OCIRegistries []OCIAuth      `yaml:"ociRegistries"`
 }
 
+// HelmRepoAuth holds credentials for a Helm HTTP repository.
 type HelmRepoAuth struct {
 	URL      string `yaml:"url"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
 
+// OCIAuth holds authentication configuration for an OCI registry.
 type OCIAuth struct {
 	Registry string `yaml:"registry"`
 	Provider string `yaml:"provider"`
 }
 
+// ReleaseNotesConfig controls release notes fetching behavior.
 type ReleaseNotesConfig struct {
 	Enabled             bool     `yaml:"enabled"`
 	MaxLength           int      `yaml:"maxLength"`
@@ -73,6 +80,7 @@ type ReleaseNotesConfig struct {
 	Sources             []string `yaml:"sources"`
 }
 
+// DefaultConfig returns the default argoiax configuration.
 func DefaultConfig() *Config {
 	return &Config{
 		Version:  1,
@@ -97,6 +105,7 @@ func DefaultConfig() *Config {
 	}
 }
 
+// Load reads and parses the config file, falling back to defaults when the path is empty.
 func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()
 
@@ -104,7 +113,7 @@ func Load(path string) (*Config, error) {
 		path = "argoiax.yaml"
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path from user-specified --config flag
 	if err != nil {
 		if os.IsNotExist(err) && path == "argoiax.yaml" {
 			return cfg, nil
@@ -129,6 +138,7 @@ func Load(path string) (*Config, error) {
 var validStrategies = map[string]bool{StrategyPerChart: true, StrategyPerFile: true, StrategyBatch: true}
 var validSources = map[string]bool{SourceGitHubReleases: true, SourceArtifactHub: true, SourceChangelog: true}
 
+// Validate checks that all config values are valid.
 func (c *Config) Validate() error {
 	if c.Version != 0 && c.Version != 1 {
 		return fmt.Errorf("unsupported config version: %d", c.Version)
@@ -168,4 +178,3 @@ func (c *Config) FindRepoAuth(repoURL string) *HelmRepoAuth {
 	}
 	return nil
 }
-

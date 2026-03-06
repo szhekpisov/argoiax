@@ -23,8 +23,10 @@ func NewGitHubFetcher(token string) *GitHubFetcher {
 	}
 }
 
+// Name returns the source name.
 func (f *GitHubFetcher) Name() string { return config.SourceGitHubReleases }
 
+// Fetch retrieves release notes from GitHub Releases for the given versions.
 func (f *GitHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
 	var entries []Entry
 	sourceURL := fmt.Sprintf("https://github.com/%s/%s/releases", repo.Owner, repo.Repo)
@@ -77,7 +79,7 @@ func (f *GitHubFetcher) fetchReleaseByTag(ctx context.Context, repo GitHubRepo, 
 
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := f.client.Do(req)
+	resp, err := f.client.Do(req) //nolint:bodyclose // closed via registry.DrainBody
 	if err != nil {
 		return nil, err
 	}

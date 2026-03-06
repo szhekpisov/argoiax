@@ -62,7 +62,7 @@ releaseNotes:
   enabled: true
   sources: [github-releases]
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,10 +97,8 @@ func TestLoad_ExpandsEnvVars(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "argoiax.yaml")
 
-	os.Setenv("TEST_HELM_USER", "myuser")
-	os.Setenv("TEST_HELM_PASS", "mypass")
-	defer os.Unsetenv("TEST_HELM_USER")
-	defer os.Unsetenv("TEST_HELM_PASS")
+	t.Setenv("TEST_HELM_USER", "myuser")
+	t.Setenv("TEST_HELM_PASS", "mypass")
 
 	content := `
 version: 1
@@ -110,7 +108,7 @@ auth:
       username: "${TEST_HELM_USER}"
       password: "${TEST_HELM_PASS}"
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -151,7 +149,7 @@ func TestValidate_InvalidReleaseSource(t *testing.T) {
 func TestLookupChart(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Charts = map[string]Chart{
-		"cert-manager": {VersionConstraint: ">=1.0.0"},
+		"cert-manager":                   {VersionConstraint: ">=1.0.0"},
 		"https://bitnami.com#postgresql": {GithubRepo: "bitnami/charts"},
 	}
 

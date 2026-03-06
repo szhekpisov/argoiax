@@ -43,4 +43,3 @@ func (f *Factory) GetRegistry(ref manifest.ChartReference) (Registry, error) {
 		return nil, fmt.Errorf("unsupported source type: %s", ref.Type)
 	}
 }
-

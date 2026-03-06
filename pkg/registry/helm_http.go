@@ -19,9 +19,9 @@ import (
 // HelmHTTPRegistry implements Registry for classic Helm HTTP repositories.
 type HelmHTTPRegistry struct {
 	cfg     *config.Config
-	cache   sync.Map            // repoURL -> *indexCache
-	clients sync.Map            // repoURL -> *http.Client
-	group   singleflight.Group  // dedup concurrent fetches for the same repo
+	cache   sync.Map           // repoURL -> *indexCache
+	clients sync.Map           // repoURL -> *http.Client
+	group   singleflight.Group // dedup concurrent fetches for the same repo
 }
 
 type indexCache struct {
@@ -42,6 +42,7 @@ func NewHelmHTTPRegistry(cfg *config.Config) *HelmHTTPRegistry {
 	return &HelmHTTPRegistry{cfg: cfg}
 }
 
+// ListVersions returns all available versions for a chart from a Helm HTTP repository.
 func (r *HelmHTTPRegistry) ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error) {
 	idx, err := r.fetchIndex(ctx, ref.RepoURL)
 	if err != nil {
@@ -63,7 +64,7 @@ func (r *HelmHTTPRegistry) fetchIndex(ctx context.Context, repoURL string) (*ind
 
 	// Use a context detached from the caller so that if the winning goroutine's
 	// context is cancelled, other waiters sharing this singleflight call are not affected.
-	v, err, _ := r.group.Do(repoURL, func() (interface{}, error) {
+	v, err, _ := r.group.Do(repoURL, func() (any, error) {
 		// Double-check after winning the race
 		if cached, ok := r.cache.Load(repoURL); ok {
 			return cached.(*indexCache), nil
@@ -90,7 +91,7 @@ func (r *HelmHTTPRegistry) doFetchIndex(ctx context.Context, repoURL string) (*i
 	if err != nil {
 		return nil, fmt.Errorf("fetching index from %s: %w", indexURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetching index from %s: status %d", indexURL, resp.StatusCode)

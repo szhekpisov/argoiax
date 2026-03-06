@@ -35,7 +35,7 @@ func DetectBreaking(current, latest, releaseNotesBody string) BreakingChangeResu
 	}
 
 	if releaseNotesBody != "" {
-		for _, line := range strings.Split(releaseNotesBody, "\n") {
+		for line := range strings.SplitSeq(releaseNotesBody, "\n") {
 			if len(result.Reasons) >= maxBreakingReasons-1 {
 				result.Reasons = append(result.Reasons, fmt.Sprintf("... and more (capped at %d)", maxBreakingReasons))
 				break

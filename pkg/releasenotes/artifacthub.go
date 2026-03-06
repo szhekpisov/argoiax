@@ -3,6 +3,7 @@ package releasenotes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,8 +25,10 @@ func NewArtifactHubFetcher() *ArtifactHubFetcher {
 	}
 }
 
+// Name returns the source name.
 func (f *ArtifactHubFetcher) Name() string { return config.SourceArtifactHub }
 
+// Fetch retrieves release notes from ArtifactHub for the given versions.
 func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
 	// ArtifactHub uses repository-name/chart-name format.
 	// We try to derive a reasonable package path.
@@ -49,9 +52,9 @@ func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, version
 }
 
 type artifactHubPackage struct {
-	Version   string                    `json:"version"`
-	Changes   []artifactHubChange       `json:"changes"`
-	HTMLURL   string                    `json:"package_id"`
+	Version string              `json:"version"`
+	Changes []artifactHubChange `json:"changes"`
+	HTMLURL string              `json:"package_id"`
 }
 
 type artifactHubChange struct {
@@ -76,7 +79,7 @@ func (f *ArtifactHubFetcher) fetchVersion(ctx context.Context, repo GitHubRepo, 
 		}
 	}
 
-	return nil, "", fmt.Errorf("not found on ArtifactHub")
+	return nil, "", errors.New("not found on ArtifactHub")
 }
 
 func (f *ArtifactHubFetcher) tryPackage(ctx context.Context, pkg, version string) (*Entry, string, error) {
@@ -87,7 +90,7 @@ func (f *ArtifactHubFetcher) tryPackage(ctx context.Context, pkg, version string
 		return nil, "", err
 	}
 
-	resp, err := f.client.Do(req)
+	resp, err := f.client.Do(req) //nolint:bodyclose // closed via registry.DrainBody
 	if err != nil {
 		return nil, "", err
 	}

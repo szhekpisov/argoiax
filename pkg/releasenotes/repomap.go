@@ -8,7 +8,7 @@ import (
 )
 
 // MapChartToRepo determines the GitHub repository for a chart.
-func MapChartToRepo(chartName, repoURL string, chartCfg *config.Chart) GitHubRepo {
+func MapChartToRepo(_, repoURL string, chartCfg *config.Chart) GitHubRepo {
 	// Check explicit config override first
 	if chartCfg != nil && chartCfg.GithubRepo != "" {
 		parts := strings.SplitN(chartCfg.GithubRepo, "/", 2)

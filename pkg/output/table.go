@@ -11,11 +11,12 @@ import (
 // Status represents the version check status for a chart.
 type Status string
 
+// Status constants for drift results.
 const (
-	StatusUpToDate       Status = "UP TO DATE"
+	StatusUpToDate        Status = "UP TO DATE"
 	StatusUpdateAvailable Status = "UPDATE AVAILABLE"
-	StatusBreaking       Status = "BREAKING (major)"
-	StatusError          Status = "ERROR"
+	StatusBreaking        Status = "BREAKING (major)"
+	StatusError           Status = "ERROR"
 )
 
 // DriftResult represents the version check result for a single chart reference.
@@ -31,7 +32,7 @@ type DriftResult struct {
 
 // Renderer outputs drift results in various formats.
 type Renderer struct {
-	Writer      io.Writer
+	Writer       io.Writer
 	ShowUpToDate bool
 }
 
@@ -52,10 +53,10 @@ func (r *Renderer) filterResults(results []DriftResult) []DriftResult {
 // RenderTable outputs results as an aligned table.
 func (r *Renderer) RenderTable(results []DriftResult) {
 	w := tabwriter.NewWriter(r.Writer, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "CHART\tFILE\tCURRENT\tLATEST\tSTATUS")
+	_, _ = fmt.Fprintln(w, "CHART\tFILE\tCURRENT\tLATEST\tSTATUS")
 
 	for _, res := range results {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			res.ChartName,
 			res.FilePath,
 			res.CurrentVersion,
@@ -63,7 +64,7 @@ func (r *Renderer) RenderTable(results []DriftResult) {
 			res.Status,
 		)
 	}
-	w.Flush()
+	_ = w.Flush()
 }
 
 // RenderJSON outputs results as JSON.
@@ -75,11 +76,11 @@ func (r *Renderer) RenderJSON(results []DriftResult) error {
 
 // RenderMarkdown outputs results as a Markdown table.
 func (r *Renderer) RenderMarkdown(results []DriftResult) {
-	fmt.Fprintln(r.Writer, "| Chart | File | Current | Latest | Status |")
-	fmt.Fprintln(r.Writer, "|-------|------|---------|--------|--------|")
+	_, _ = fmt.Fprintln(r.Writer, "| Chart | File | Current | Latest | Status |")
+	_, _ = fmt.Fprintln(r.Writer, "|-------|------|---------|--------|--------|")
 
 	for _, res := range results {
-		fmt.Fprintf(r.Writer, "| %s | %s | %s | %s | %s |\n",
+		_, _ = fmt.Fprintf(r.Writer, "| %s | %s | %s | %s | %s |\n",
 			res.ChartName,
 			res.FilePath,
 			res.CurrentVersion,

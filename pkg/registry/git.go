@@ -27,6 +27,7 @@ type gitTag struct {
 	Name string `json:"name"`
 }
 
+// ListVersions returns all available tags from a GitHub repository.
 func (r *GitRegistry) ListVersions(ctx context.Context, ref manifest.ChartReference) ([]string, error) {
 	owner, repo := ExtractGitHubOwnerRepo(ref.RepoURL)
 	if owner == "" || repo == "" {
@@ -60,7 +61,7 @@ func (r *GitRegistry) fetchTagPage(ctx context.Context, apiURL string) ([]gitTag
 
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Do(req) //nolint:bodyclose // closed via DrainBody
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching tags from GitHub: %w", err)
 	}
@@ -83,7 +84,7 @@ func parseNextLink(header string) string {
 	if header == "" {
 		return ""
 	}
-	for _, part := range strings.Split(header, ",") {
+	for part := range strings.SplitSeq(header, ",") {
 		part = strings.TrimSpace(part)
 		if strings.Contains(part, `rel="next"`) {
 			start := strings.Index(part, "<")
