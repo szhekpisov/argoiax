@@ -59,7 +59,7 @@ linters:
     - iface
     - usetesting
 
-linters-settings:
+settings:
   gocognit:
     min-complexity: 20
   cyclop:
