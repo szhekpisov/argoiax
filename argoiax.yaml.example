@@ -15,8 +15,9 @@ settings:
   baseBranch: main
   branchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}"
   titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
+  groupBranchTemplate: "argoiax/update-{{.FileBaseName}}"
+  groupTitleTemplate: "chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}"
   maxOpenPRs: 10
-  autoMergePatch: true
 
 auth:
   helmRepos:
@@ -25,7 +26,6 @@ auth:
       password: "${HELM_PASS}"
   ociRegistries:
     - registry: "123456789.dkr.ecr.us-east-1.amazonaws.com"
-      provider: ecr
 
 releaseNotes:
   enabled: true

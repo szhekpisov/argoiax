@@ -88,8 +88,8 @@ argoiax version
 ### Global flags
 
 ```
-      --config string      Config file (default "argoiax.yaml")
-      --dir string         Directory to scan (default ".")
+      --config string      Config file (defaults to argoiax.yaml if not specified)
+      --dir string         Directory to scan (defaults to scanDirs from config, which defaults to ["."])
       --dry-run            Report changes without modifying files
       --log-level string   Log level: debug, info, warn, error (default "info")
 ```
@@ -116,8 +116,9 @@ settings:
   baseBranch: main
   branchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}"
   titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
+  groupBranchTemplate: "argoiax/update-{{.FileBaseName}}"
+  groupTitleTemplate: "chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}"
   maxOpenPRs: 10
-  autoMergePatch: true
 
 auth:
   helmRepos:
@@ -126,7 +127,6 @@ auth:
       password: "${HELM_PASS}"
   ociRegistries:
     - registry: "123456789.dkr.ecr.us-east-1.amazonaws.com"
-      provider: ecr
 
 releaseNotes:
   enabled: true
@@ -141,8 +141,11 @@ releaseNotes:
 |---------|-------------|---------|
 | `prStrategy` | PR grouping: `per-chart`, `per-file`, or `batch` | `per-chart` |
 | `baseBranch` | Target branch for PRs | `main` |
+| `branchTemplate` | Branch name template for per-chart PRs | `argoiax/{{.ChartName}}-{{.NewVersion}}` |
+| `titleTemplate` | PR title template for per-chart PRs | `chore(deps): update {{.ChartName}} to {{.NewVersion}}` |
+| `groupBranchTemplate` | Branch name template for per-file/batch PRs | `argoiax/update-{{.FileBaseName}}` |
+| `groupTitleTemplate` | PR title template for per-file/batch PRs | `chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}` |
 | `maxOpenPRs` | Maximum concurrent open PRs | `10` |
-| `autoMergePatch` | Auto-merge label for patch updates | `false` |
 | `releaseNotes.enabled` | Fetch and include release notes in PRs | `true` |
 | `releaseNotes.sources` | Release note sources in priority order | `[github-releases, artifacthub, changelog]` |
 
