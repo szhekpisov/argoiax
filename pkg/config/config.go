@@ -39,13 +39,15 @@ type Chart struct {
 }
 
 type Settings struct {
-	PRStrategy     string   `yaml:"prStrategy"`
-	Labels         []string `yaml:"labels"`
-	BaseBranch     string   `yaml:"baseBranch"`
-	BranchTemplate string   `yaml:"branchTemplate"`
-	TitleTemplate  string   `yaml:"titleTemplate"`
-	MaxOpenPRs     int      `yaml:"maxOpenPRs"`
-	AutoMergePatch bool     `yaml:"autoMergePatch"`
+	PRStrategy          string   `yaml:"prStrategy"`
+	Labels              []string `yaml:"labels"`
+	BaseBranch          string   `yaml:"baseBranch"`
+	BranchTemplate      string   `yaml:"branchTemplate"`
+	TitleTemplate       string   `yaml:"titleTemplate"`
+	GroupBranchTemplate string   `yaml:"groupBranchTemplate"`
+	GroupTitleTemplate  string   `yaml:"groupTitleTemplate"`
+	MaxOpenPRs          int      `yaml:"maxOpenPRs"`
+	AutoMergePatch      bool     `yaml:"autoMergePatch"`
 }
 
 type Auth struct {
@@ -76,13 +78,15 @@ func DefaultConfig() *Config {
 		Version:  1,
 		ScanDirs: []string{"."},
 		Settings: Settings{
-			PRStrategy:     StrategyPerChart,
-			Labels:         []string{"argoiax", "dependencies"},
-			BaseBranch:     "main",
-			BranchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}",
-			TitleTemplate:  "chore(deps): update {{.ChartName}} to {{.NewVersion}}",
-			MaxOpenPRs:     10,
-			AutoMergePatch: false,
+			PRStrategy:          StrategyPerChart,
+			Labels:              []string{"argoiax", "dependencies"},
+			BaseBranch:          "main",
+			BranchTemplate:      "argoiax/{{.ChartName}}-{{.NewVersion}}",
+			TitleTemplate:       "chore(deps): update {{.ChartName}} to {{.NewVersion}}",
+			GroupBranchTemplate: "argoiax/update-{{.FileBaseName}}",
+			GroupTitleTemplate:  "chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}",
+			MaxOpenPRs:          10,
+			AutoMergePatch:      false,
 		},
 		Release: ReleaseNotesConfig{
 			Enabled:             true,

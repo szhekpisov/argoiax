@@ -3,6 +3,8 @@ package pr
 import (
 	"fmt"
 	"strings"
+
+	"github.com/vertrost/argoiax/pkg/releasenotes"
 )
 
 // RenderPRBody generates a Dependabot-style PR body for a chart update.
@@ -25,17 +27,7 @@ func RenderPRBody(info UpdateInfo) string {
 
 	// Release notes section
 	if info.ReleaseNotes != nil && len(info.ReleaseNotes.Entries) > 0 {
-		b.WriteString("\n<details>\n<summary>Release notes</summary>\n")
-		if info.ReleaseNotes.SourceURL != "" {
-			b.WriteString(fmt.Sprintf("<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", info.ReleaseNotes.SourceURL, info.ChartName))
-		}
-		b.WriteString("<blockquote>\n")
-		for _, entry := range info.ReleaseNotes.Entries {
-			b.WriteString(fmt.Sprintf("<h2>%s</h2>\n", entry.Version))
-			b.WriteString(entry.Body)
-			b.WriteString("\n")
-		}
-		b.WriteString("</blockquote>\n</details>\n")
+		writeReleaseNotes(&b, info.ChartName, info.ReleaseNotes, "Release notes")
 	}
 
 	// Breaking change badge
@@ -49,15 +41,87 @@ func RenderPRBody(info UpdateInfo) string {
 	}
 
 	// Footer
+	writeFooter(&b, []string{
+		"- `@argoiax recheck` will re-run the version check for this chart",
+		"- `@argoiax ignore this major version` will close this PR and stop creating PRs for this major version",
+		"- `@argoiax ignore this minor version` will close this PR and stop creating PRs for this minor version",
+		"- `@argoiax ignore this chart` will close this PR and stop creating PRs for this chart",
+	})
+
+	return b.String()
+}
+
+// RenderGroupPRBody generates a PR body for a group of chart updates.
+func RenderGroupPRBody(group UpdateGroup) string {
+	var b strings.Builder
+
+	// Summary table
+	b.WriteString("## Updated Charts\n\n")
+	b.WriteString("| Chart | File | Version |\n")
+	b.WriteString("|-------|------|---------|\n")
+	for _, u := range group.Updates {
+		b.WriteString(fmt.Sprintf("| %s | `%s` | %s → %s |\n", u.ChartName, u.FilePath, u.OldVersion, u.NewVersion))
+	}
+
+	// Breaking change warnings
+	var breakingUpdates []UpdateInfo
+	for _, u := range group.Updates {
+		if u.IsBreaking {
+			breakingUpdates = append(breakingUpdates, u)
+		}
+	}
+	if len(breakingUpdates) > 0 {
+		b.WriteString("\n> [!WARNING]\n> This PR contains **major version updates** that may include breaking changes:\n>\n")
+		for _, u := range breakingUpdates {
+			b.WriteString(fmt.Sprintf("> - **%s** %s → %s\n", u.ChartName, u.OldVersion, u.NewVersion))
+			for _, reason := range u.BreakingReasons {
+				b.WriteString(fmt.Sprintf(">   - %s\n", reason))
+			}
+		}
+	}
+
+	// Per-chart release notes
+	for _, u := range group.Updates {
+		if u.ReleaseNotes == nil || len(u.ReleaseNotes.Entries) == 0 {
+			continue
+		}
+		summary := fmt.Sprintf("Release notes for %s (%s → %s)", u.ChartName, u.OldVersion, u.NewVersion)
+		writeReleaseNotes(&b, u.ChartName, u.ReleaseNotes, summary)
+	}
+
+	// Footer
+	b.WriteString("\n<br />\n\n")
+	writeFooter(&b, []string{
+		"- `@argoiax recheck` will re-run the version check for the charts in this PR",
+	})
+
+	return b.String()
+}
+
+// writeReleaseNotes writes a collapsible release notes section into the builder.
+func writeReleaseNotes(b *strings.Builder, chartName string, notes *releasenotes.Notes, summary string) {
+	b.WriteString(fmt.Sprintf("\n<details>\n<summary>%s</summary>\n", summary))
+	if notes.SourceURL != "" {
+		b.WriteString(fmt.Sprintf("<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", notes.SourceURL, chartName))
+	}
+	b.WriteString("<blockquote>\n")
+	for _, entry := range notes.Entries {
+		b.WriteString(fmt.Sprintf("<h2>%s</h2>\n", entry.Version))
+		b.WriteString(entry.Body)
+		b.WriteString("\n")
+	}
+	b.WriteString("</blockquote>\n</details>\n")
+}
+
+// writeFooter writes the standard PR footer with argoiax commands.
+func writeFooter(b *strings.Builder, commands []string) {
 	b.WriteString("argoiax will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a recheck by commenting `@argoiax recheck`.\n")
 	b.WriteString("\n---\n\n")
 	b.WriteString("<details>\n<summary>argoiax commands and options</summary>\n<br />\n\n")
 	b.WriteString("You can trigger argoiax actions by commenting on this PR:\n")
-	b.WriteString("- `@argoiax recheck` will re-run the version check for this chart\n")
-	b.WriteString("- `@argoiax ignore this major version` will close this PR and stop creating PRs for this major version\n")
-	b.WriteString("- `@argoiax ignore this minor version` will close this PR and stop creating PRs for this minor version\n")
-	b.WriteString("- `@argoiax ignore this chart` will close this PR and stop creating PRs for this chart\n")
+	for _, cmd := range commands {
+		b.WriteString(cmd)
+		b.WriteString("\n")
+	}
 	b.WriteString("\n</details>\n")
-
-	return b.String()
 }
