@@ -1,0 +1,65 @@
+version: 3
+
+allow:
+  depOnAnyVendor: true
+
+components:
+  main:
+    in: .
+  cmd:
+    in: cmd
+  config:
+    in: pkg/config
+  manifest:
+    in: pkg/manifest
+  output:
+    in: pkg/output
+  semver:
+    in: pkg/semver
+  registry:
+    in: pkg/registry
+  releasenotes:
+    in: pkg/releasenotes
+  updater:
+    in: pkg/updater
+  pr:
+    in: pkg/pr
+
+deps:
+  main:
+    mayDependOn:
+      - cmd
+  cmd:
+    mayDependOn:
+      - config
+      - manifest
+      - output
+      - semver
+      - registry
+      - releasenotes
+      - updater
+      - pr
+  config:
+    anyVendorDeps: true
+  manifest:
+    anyVendorDeps: true
+  output:
+    anyVendorDeps: true
+  semver:
+    anyVendorDeps: true
+  registry:
+    mayDependOn:
+      - config
+      - manifest
+      - semver
+  releasenotes:
+    mayDependOn:
+      - config
+      - registry
+  updater:
+    mayDependOn:
+      - manifest
+  pr:
+    mayDependOn:
+      - config
+      - releasenotes
