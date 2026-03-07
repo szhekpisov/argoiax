@@ -1,0 +1,114 @@
+name: 'Argoiax'
+description: 'Detect and update outdated Helm chart versions in ArgoCD manifests'
+branding:
+  icon: 'refresh-cw'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'Command to run (scan or update)'
+    required: false
+    default: 'update'
+  config:
+    description: 'Path to argoiax.yaml config file'
+    required: false
+    default: 'argoiax.yaml'
+  dir:
+    description: 'Directory to scan for ArgoCD manifests'
+    required: false
+    default: '.'
+  chart:
+    description: 'Only check/update a specific chart name'
+    required: false
+  allow-major:
+    description: 'Include major version updates'
+    required: false
+    default: 'false'
+  max-prs:
+    description: 'Maximum number of PRs to create'
+    required: false
+    default: '10'
+  github-token:
+    description: 'GitHub token for creating PRs and API access'
+    required: false
+    default: ${{ github.token }}
+  log-level:
+    description: 'Log level (debug, info, warn, error)'
+    required: false
+    default: 'info'
+  version:
+    description: 'argoiax version to use (default: latest)'
+    required: false
+    default: 'latest'
+
+outputs:
+  updates-found:
+    description: 'Number of updates found'
+    value: ${{ steps.run.outputs.updates-found }}
+  prs-created:
+    description: 'Number of PRs created'
+    value: ${{ steps.run.outputs.prs-created }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install argoiax
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+
+        if [ "$INPUT_VERSION" = "latest" ]; then
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/szhekpisov/argoiax/releases/latest \
+            | grep "browser_download_url.*${OS}_${ARCH}.tar.gz" \
+            | cut -d '"' -f 4)
+        else
+          DOWNLOAD_URL="https://github.com/szhekpisov/argoiax/releases/download/v${INPUT_VERSION}/argoiax_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
+        fi
+        curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin argoiax
+        chmod +x /usr/local/bin/argoiax
+
+    - name: Run argoiax
+      id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_DIR: ${{ inputs.dir }}
+        INPUT_LOG_LEVEL: ${{ inputs.log-level }}
+        INPUT_ALLOW_MAJOR: ${{ inputs.allow-major }}
+        INPUT_MAX_PRS: ${{ inputs.max-prs }}
+        INPUT_CHART: ${{ inputs.chart }}
+        INPUT_REPO: ${{ github.repository }}
+      run: |
+        ARGS="$INPUT_COMMAND"
+        ARGS="$ARGS --config $INPUT_CONFIG"
+        ARGS="$ARGS --dir $INPUT_DIR"
+        ARGS="$ARGS --log-level $INPUT_LOG_LEVEL"
+
+        if [ "$INPUT_COMMAND" = "update" ]; then
+          ARGS="$ARGS --repo $INPUT_REPO"
+          ARGS="$ARGS --max-prs $INPUT_MAX_PRS"
+          if [ "$INPUT_ALLOW_MAJOR" = "true" ]; then
+            ARGS="$ARGS --allow-major"
+          fi
+        fi
+
+        if [ -n "$INPUT_CHART" ]; then
+          ARGS="$ARGS --chart $INPUT_CHART"
+        fi
+
+        OUTPUT=$(argoiax $ARGS 2>&1) || true
+        echo "$OUTPUT"
+
+        UPDATES=$(echo "$OUTPUT" | grep -oP '\d+(?= update\(s\) available)' || echo "0")
+        PRS=$(echo "$OUTPUT" | grep -oP 'Created \K\d+(?= PR)' || echo "0")
+        echo "updates-found=$UPDATES" >> "$GITHUB_OUTPUT"
+        echo "prs-created=$PRS" >> "$GITHUB_OUTPUT"

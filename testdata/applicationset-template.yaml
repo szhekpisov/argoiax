@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dynamic-charts
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/myorg/config.git
+        revision: HEAD
+        files:
+          - path: "charts/*/config.json"
+  template:
+    metadata:
+      name: '{{chart}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{repoURL}}'
+        chart: '{{chart}}'
+        targetRevision: '{{version}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'

@@ -1,0 +1,114 @@
+version: "2"
+
+linters:
+  enable:
+    # bugs
+    - errcheck
+    - govet
+    - staticcheck
+    - bodyclose
+    - durationcheck
+    - nilerr
+    - nilnesserr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - gosec
+
+    # unused code
+    - unused
+    - ineffassign
+    - wastedassign
+    - unconvert
+    - unparam
+
+    # style & simplification
+    - revive
+    - misspell
+    - errname
+    - errorlint
+    - gocritic
+    - modernize
+    - usestdlibvars
+    - copyloopvar
+    - intrange
+    - perfsprint
+    - exptostd
+
+    # complexity
+    - gocognit
+    - cyclop
+    - nestif
+    - funlen
+    - nakedret
+
+    # misc
+    - prealloc
+    - predeclared
+    - recvcheck
+    - dupword
+    - gocheckcompilerdirectives
+    - nosprintfhostport
+    - reassign
+    - loggercheck
+    - fatcontext
+    - sloglint
+    - mirror
+    - musttag
+    - godoclint
+    - iface
+    - usetesting
+  settings:
+    gocognit:
+      min-complexity: 20
+    cyclop:
+      max-complexity: 15
+    nestif:
+      min-complexity: 5
+    funlen:
+      lines: 80
+      statements: 50
+    nakedret:
+      max-func-lines: 0
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - opinionated
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: indent-error-flow
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    gosec:
+      excludes:
+        - G104
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+output:
+  sort-order:
+    - file

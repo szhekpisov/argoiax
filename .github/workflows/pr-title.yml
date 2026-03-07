@@ -1,0 +1,29 @@
+name: PR Title
+
+permissions: read-all
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title convention
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ ! "$PR_TITLE" =~ ^(feat|bug|fix|docs|chore|test|refactor):\ .+ ]]; then
+            echo "::error::PR title must start with: feat: / bug: / fix: / docs: / chore: / test: / refactor:"
+            echo ""
+            echo "Examples:"
+            echo "  feat: add Helm OCI registry support"
+            echo "  fix: correct semver comparison for pre-release tags"
+            echo "  refactor: simplify PR body generation"
+            echo "  docs: update architecture documentation"
+            echo "  chore: bump dependencies"
+            echo "  test: add config parser test fixtures"
+            exit 1
+          fi
+          echo "PR title is valid: $PR_TITLE"

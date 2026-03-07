@@ -1,0 +1,32 @@
+version: 1
+scanDirs: [apps/, clusters/production/]
+ignore: ["**/test/**"]
+
+charts:
+  cert-manager:
+    versionConstraint: ">=1.0.0, <2.0.0"
+  "https://charts.bitnami.com/bitnami#postgresql":
+    githubRepo: "bitnami/charts"
+    tagPattern: "postgresql-{{.Version}}"
+
+settings:
+  prStrategy: "per-chart"          # per-chart | per-file | batch
+  labels: [argoiax, dependencies]
+  baseBranch: main
+  branchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}"
+  titleTemplate: "chore(deps): update {{.ChartName}} to {{.NewVersion}}"
+  groupBranchTemplate: "argoiax/update-{{.FileBaseName}}"
+  groupTitleTemplate: "chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}"
+  maxOpenPRs: 10
+
+auth:
+  helmRepos:
+    - url: "https://private.example.com"
+      username: "${HELM_USER}"
+      password: "${HELM_PASS}"
+
+releaseNotes:
+  enabled: true
+  maxLength: 10000
+  includeIntermediate: true
+  sources: [github-releases, artifacthub, changelog]

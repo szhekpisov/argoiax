@@ -1,0 +1,14 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/myorg/helm-charts.git
+    path: charts/myapp
+    targetRevision: v2.1.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
