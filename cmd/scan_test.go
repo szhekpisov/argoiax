@@ -14,6 +14,21 @@ import (
 	"github.com/vertrost/argoiax/pkg/registry"
 )
 
+func TestNewScanCmd(t *testing.T) {
+	root := &rootOptions{}
+	cmd := newScanCmd(root)
+
+	if cmd.Use != "scan" {
+		t.Errorf("expected Use scan, got %s", cmd.Use)
+	}
+
+	for _, flag := range []string{"output", "chart", "show-uptodate", "fail-on-drift"} {
+		if cmd.Flags().Lookup(flag) == nil {
+			t.Errorf("expected flag %q to be registered", flag)
+		}
+	}
+}
+
 func TestScanRefs_Basic(t *testing.T) {
 	dir := t.TempDir()
 	writeTestManifest(t, dir, "app1", "mychart", "1.0.0")

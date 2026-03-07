@@ -265,6 +265,108 @@ func TestGroupByFile(t *testing.T) {
 	}
 }
 
+func TestResolveCredentials(t *testing.T) {
+	tests := []struct {
+		name      string
+		token     string
+		slug      string
+		dryRun    bool
+		envToken  string
+		wantToken string
+		wantOwner string
+		wantRepo  string
+		wantErr   bool
+	}{
+		{"token from flag", "flag-token", "owner/repo", false, "", "flag-token", "owner", "repo", false},
+		{"token from env", "", "owner/repo", false, "env-token", "env-token", "owner", "repo", false},
+		{"missing token not dry-run", "", "owner/repo", false, "", "", "", "", true},
+		{"missing token dry-run", "", "owner/repo", true, "", "", "owner", "repo", false},
+		{"invalid slug not dry-run", "token", "invalid", false, "", "", "", "", true},
+		{"invalid slug dry-run", "token", "invalid", true, "", "token", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GITHUB_TOKEN", tt.envToken)
+			t.Setenv("GH_TOKEN", "")
+			t.Setenv("GITHUB_REPOSITORY", "")
+
+			token, owner, repo, err := resolveCredentials(tt.token, tt.slug, tt.dryRun)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if token != tt.wantToken {
+				t.Errorf("token = %q, want %q", token, tt.wantToken)
+			}
+			if owner != tt.wantOwner {
+				t.Errorf("owner = %q, want %q", owner, tt.wantOwner)
+			}
+			if repo != tt.wantRepo {
+				t.Errorf("repo = %q, want %q", repo, tt.wantRepo)
+			}
+		})
+	}
+}
+
+func TestPrintDryRun(t *testing.T) {
+	updates := []resolvedUpdate{
+		{info: pr.UpdateInfo{ChartName: "chart1", FilePath: "app.yaml", OldVersion: "1.0.0", NewVersion: "1.1.0"}},
+		{info: pr.UpdateInfo{ChartName: "chart2", FilePath: "app2.yaml", OldVersion: "2.0.0", NewVersion: "3.0.0", IsBreaking: true}},
+	}
+
+	// Should not panic — output goes to stdout
+	printDryRun(updates)
+}
+
+func TestCollectInfos(t *testing.T) {
+	updates := []resolvedUpdate{
+		{info: pr.UpdateInfo{ChartName: "a", NewVersion: "1.0.0"}},
+		{info: pr.UpdateInfo{ChartName: "b", NewVersion: "2.0.0"}},
+		{info: pr.UpdateInfo{ChartName: "c", NewVersion: "3.0.0"}},
+	}
+	infos := collectInfos(updates)
+	if len(infos) != 3 {
+		t.Fatalf("expected 3 infos, got %d", len(infos))
+	}
+	if infos[0].ChartName != "a" || infos[1].ChartName != "b" || infos[2].ChartName != "c" {
+		t.Errorf("unexpected chart names: %v", infos)
+	}
+}
+
+func TestApplyFileUpdates_Empty(t *testing.T) {
+	_, err := applyFileUpdates(nil)
+	if err == nil {
+		t.Error("expected error for empty updates")
+	}
+}
+
+func TestApplyFileUpdates_Valid(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+	data, err := applyFileUpdates(updates)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("expected non-empty data")
+	}
+}
+
+func TestResolveRepo_EnvFallback(t *testing.T) {
+	t.Setenv("GITHUB_REPOSITORY", "env-owner/env-repo")
+	owner, repo, err := resolveRepo("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if owner != "env-owner" || repo != "env-repo" {
+		t.Errorf("expected env-owner/env-repo, got %s/%s", owner, repo)
+	}
+}
+
 func TestResolveRepo(t *testing.T) {
 	t.Setenv("GITHUB_REPOSITORY", "")
 	tests := []struct {

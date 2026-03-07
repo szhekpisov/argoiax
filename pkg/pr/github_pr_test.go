@@ -1,0 +1,268 @@
+package pr
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/google/go-github/v68/github"
+	"github.com/vertrost/argoiax/pkg/config"
+)
+
+func newTestGitHubServer(t *testing.T) (*httptest.Server, *github.Client) {
+	t.Helper()
+	mux := http.NewServeMux()
+
+	// GetRef — return a valid ref
+	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
+		ref := &github.Reference{
+			Ref:    github.Ptr("refs/heads/main"),
+			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(ref)
+	})
+
+	// CreateRef — accept branch creation
+	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
+		ref := &github.Reference{
+			Ref:    github.Ptr("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(ref)
+	})
+
+	// GetContents — return file with SHA
+	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
+		content := &github.RepositoryContent{SHA: github.Ptr("file-sha-123")}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(content)
+	})
+
+	// UpdateFile — accept file update
+	mux.HandleFunc("PUT /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
+		resp := &github.RepositoryContentResponse{
+			Content: &github.RepositoryContent{SHA: github.Ptr("new-sha-456")},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	// CreatePullRequest — return PR
+	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, _ *http.Request) {
+		pr := &github.PullRequest{
+			Number:  github.Ptr(42),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(pr)
+	})
+
+	// AddLabelsToIssue — accept labels
+	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/issues/{issue}/labels", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]*github.Label{{Name: github.Ptr("test")}})
+	})
+
+	// ListPullRequests
+	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, r *http.Request) {
+		head := r.URL.Query().Get("head")
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(head, "existing-branch") {
+			_ = json.NewEncoder(w).Encode([]*github.PullRequest{{Number: github.Ptr(1)}})
+		} else {
+			_ = json.NewEncoder(w).Encode([]*github.PullRequest{})
+		}
+	})
+
+	// DeleteRef — accept branch deletion
+	mux.HandleFunc("DELETE /api/v3/repos/{owner}/{repo}/git/refs/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := github.NewClient(nil)
+	client, _ = client.WithEnterpriseURLs(srv.URL, srv.URL)
+
+	return srv, client
+}
+
+func TestNewGitHubCreator(t *testing.T) {
+	client := github.NewClient(nil)
+	settings := &config.Settings{
+		BaseBranch:     "main",
+		BranchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}",
+		Labels:         []string{"dependencies"},
+	}
+
+	creator := NewGitHubCreator(client, "myowner", "myrepo", settings)
+
+	if creator.owner != "myowner" {
+		t.Errorf("expected owner myowner, got %s", creator.owner)
+	}
+	if creator.repo != "myrepo" {
+		t.Errorf("expected repo myrepo, got %s", creator.repo)
+	}
+	if creator.settings.BaseBranch != "main" {
+		t.Errorf("expected baseBranch main, got %s", creator.settings.BaseBranch)
+	}
+}
+
+func TestBuildLabels(t *testing.T) {
+	tests := []struct {
+		name       string
+		labels     []string
+		isBreaking bool
+		wantLen    int
+		wantBreak  bool
+	}{
+		{"no labels not breaking", nil, false, 0, false},
+		{"with labels not breaking", []string{"dep", "auto"}, false, 2, false},
+		{"breaking adds label", []string{"dep"}, true, 2, true},
+		{"breaking already has label", []string{"dep", LabelBreakingChange}, true, 2, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &GitHubCreator{settings: config.Settings{Labels: tt.labels}}
+			got := g.buildLabels(tt.isBreaking)
+			if len(got) != tt.wantLen {
+				t.Errorf("expected %d labels, got %d: %v", tt.wantLen, len(got), got)
+			}
+			if tt.wantBreak {
+				found := false
+				for _, l := range got {
+					if l == LabelBreakingChange {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("expected %q label in %v", LabelBreakingChange, got)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildLabels_DoesNotMutateOriginal(t *testing.T) {
+	original := []string{"dep"}
+	g := &GitHubCreator{settings: config.Settings{Labels: original}}
+	_ = g.buildLabels(true)
+	if len(original) != 1 {
+		t.Error("buildLabels mutated the original slice")
+	}
+}
+
+func TestCreatePR(t *testing.T) {
+	_, client := newTestGitHubServer(t)
+	settings := &config.Settings{
+		BaseBranch:     "main",
+		BranchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}",
+		TitleTemplate:  "update {{.ChartName}} to {{.NewVersion}}",
+		Labels:         []string{"dependencies"},
+	}
+	creator := NewGitHubCreator(client, "owner", "repo", settings)
+
+	info := &UpdateInfo{
+		ChartName:  "mychart",
+		OldVersion: "1.0.0",
+		NewVersion: "1.1.0",
+		FilePath:   "apps/app.yaml",
+		RepoURL:    "https://charts.example.com",
+	}
+
+	result, err := creator.CreatePR(context.Background(), info, []byte("content"), "main")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PRNumber != 42 {
+		t.Errorf("expected PR number 42, got %d", result.PRNumber)
+	}
+	if result.PRURL != "https://github.com/owner/repo/pull/42" {
+		t.Errorf("expected PR URL, got %s", result.PRURL)
+	}
+}
+
+func TestCreateGroupPR(t *testing.T) {
+	_, client := newTestGitHubServer(t)
+	settings := &config.Settings{
+		BaseBranch:          "main",
+		GroupBranchTemplate: "argoiax/update-{{.FileBaseName}}",
+		GroupTitleTemplate:  "update {{.Count}} chart(s)",
+		Labels:              []string{"dependencies"},
+	}
+	creator := NewGitHubCreator(client, "owner", "repo", settings)
+
+	group := UpdateGroup{
+		Updates: []UpdateInfo{
+			{ChartName: "chart1", OldVersion: "1.0.0", NewVersion: "1.1.0", FilePath: "apps/app.yaml"},
+			{ChartName: "chart2", OldVersion: "2.0.0", NewVersion: "2.1.0", FilePath: "apps/app.yaml"},
+		},
+		Files: []FileUpdate{
+			{FilePath: "apps/app.yaml", FileContent: []byte("content1")},
+		},
+	}
+
+	result, err := creator.CreateGroupPR(context.Background(), group, "main")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PRNumber != 42 {
+		t.Errorf("expected PR number 42, got %d", result.PRNumber)
+	}
+}
+
+func TestExistingPR(t *testing.T) {
+	_, client := newTestGitHubServer(t)
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
+
+	exists, err := creator.ExistingPR(context.Background(), "existing-branch")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("expected existing PR to be found")
+	}
+
+	exists, err = creator.ExistingPR(context.Background(), "new-branch")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("expected no existing PR")
+	}
+}
+
+func TestCreatePR_BranchCreationFailure(t *testing.T) {
+	mux := http.NewServeMux()
+	// GetRef fails
+	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"message":"Not Found"}`)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := github.NewClient(nil)
+	client, _ = client.WithEnterpriseURLs(srv.URL, srv.URL)
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{
+		BranchTemplate: "argoiax/{{.ChartName}}-{{.NewVersion}}",
+		TitleTemplate:  "update {{.ChartName}}",
+	})
+
+	info := &UpdateInfo{ChartName: "chart", OldVersion: "1.0.0", NewVersion: "1.1.0", FilePath: "app.yaml"}
+	_, err := creator.CreatePR(context.Background(), info, []byte("content"), "main")
+	if err == nil {
+		t.Error("expected error when branch creation fails")
+	}
+}

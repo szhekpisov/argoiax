@@ -82,6 +82,85 @@ func TestIsMajorBump(t *testing.T) {
 	}
 }
 
+func TestEqual(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"1.0.0", "v1.0.0", true},
+		{"1.0.0", "1.0.0", true},
+		{"1.0.0", "1.1.0", false},
+		{"v2.0.0", "v2.0.0", true},
+		{"invalid", "invalid", true},  // string fallback: equal
+		{"invalid", "other", false},   // string fallback: not equal
+		{"1.0.0", "invalid", false},   // string fallback: not equal
+		{"invalid", "1.0.0", false},   // string fallback
+	}
+	for _, tt := range tests {
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			if got := Equal(tt.a, tt.b); got != tt.want {
+				t.Errorf("Equal(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParsePair_EdgeCases(t *testing.T) {
+	// Invalid current
+	_, _, err := parsePair("not-a-version", "1.0.0")
+	if err == nil {
+		t.Error("expected error for invalid current version")
+	}
+
+	// Invalid latest
+	_, _, err = parsePair("1.0.0", "not-a-version")
+	if err == nil {
+		t.Error("expected error for invalid latest version")
+	}
+
+	// Both valid
+	cur, lat, err := parsePair("1.0.0", "2.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cur.Original() != "1.0.0" {
+		t.Errorf("expected 1.0.0, got %s", cur.Original())
+	}
+	if lat.Original() != "2.0.0" {
+		t.Errorf("expected 2.0.0, got %s", lat.Original())
+	}
+}
+
+func TestIsMajorBump_EdgeCases(t *testing.T) {
+	// Invalid versions should return false
+	if IsMajorBump("invalid", "2.0.0") {
+		t.Error("expected false for invalid current version")
+	}
+	if IsMajorBump("1.0.0", "invalid") {
+		t.Error("expected false for invalid latest version")
+	}
+}
+
+func TestVersionsBetween_EdgeCases(t *testing.T) {
+	// Invalid versions
+	result := VersionsBetween([]string{"1.0.0"}, "invalid", "2.0.0")
+	if result != nil {
+		t.Errorf("expected nil for invalid current, got %v", result)
+	}
+
+	// Empty list
+	result = VersionsBetween([]string{}, "1.0.0", "2.0.0")
+	if len(result) != 0 {
+		t.Errorf("expected empty result for empty list, got %v", result)
+	}
+
+	// No versions between
+	result = VersionsBetween([]string{"0.5.0", "3.0.0"}, "1.0.0", "2.0.0")
+	if len(result) != 0 {
+		t.Errorf("expected no versions between, got %v", result)
+	}
+}
+
 func TestVersionsBetween(t *testing.T) {
 	versions := []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0", "2.0.0"}
 

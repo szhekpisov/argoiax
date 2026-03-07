@@ -172,6 +172,64 @@ func TestValidate_ValidTemplates(t *testing.T) {
 	}
 }
 
+func TestFindRepoAuth(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Auth.HelmRepos = []HelmRepoAuth{
+		{URL: "https://charts.example.com", Username: "user1", Password: "pass1"},
+		{URL: "https://other.example.com", Username: "user2", Password: "pass2"},
+	}
+
+	// Exact match
+	auth := cfg.FindRepoAuth("https://charts.example.com")
+	if auth == nil || auth.Username != "user1" {
+		t.Error("expected to find auth for exact URL match")
+	}
+
+	// Prefix match with trailing path
+	auth = cfg.FindRepoAuth("https://charts.example.com/some/chart")
+	if auth == nil || auth.Username != "user1" {
+		t.Error("expected to find auth for URL prefix match")
+	}
+
+	// No match
+	auth = cfg.FindRepoAuth("https://unknown.example.com")
+	if auth != nil {
+		t.Error("expected nil for unknown URL")
+	}
+
+	// Empty auth list
+	cfg2 := DefaultConfig()
+	auth = cfg2.FindRepoAuth("https://charts.example.com")
+	if auth != nil {
+		t.Error("expected nil for empty auth list")
+	}
+}
+
+func TestValidate_InvalidVersion(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Version = 99
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("expected validation error for invalid version")
+	}
+}
+
+func TestValidate_InvalidGroupTemplates(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.GroupBranchTemplate = "{{.Broken"
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("expected validation error for invalid groupBranchTemplate")
+	}
+
+	cfg2 := DefaultConfig()
+	cfg2.Settings.GroupTitleTemplate = "{{.Broken"
+	err = cfg2.Validate()
+	if err == nil {
+		t.Error("expected validation error for invalid groupTitleTemplate")
+	}
+}
+
 func TestLookupChart(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Charts = map[string]Chart{
