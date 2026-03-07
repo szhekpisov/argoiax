@@ -270,8 +270,9 @@ auth:
     - url: "https://private.example.com"
       username: "${HELM_USER}"
       password: "${HELM_PASS}"
-  ociRegistries:
-    - registry: "123456789.dkr.ecr.us-east-1.amazonaws.com"
+  # Private OCI registries are authenticated via Docker credentials
+  # (~/.docker/config.json, credential helpers, or `docker login`).
+  # Explicit OCI auth configuration in this file is not yet supported.
 
 releaseNotes:
   enabled: true
