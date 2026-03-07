@@ -1,4 +1,4 @@
-.PHONY: build test lint clean install
+.PHONY: build test lint ci clean install
 
 VERSION ?= dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
@@ -19,6 +19,10 @@ test:
 
 lint:
 	golangci-lint run ./...
+
+ci: lint test
+	go install golang.org/x/tools/cmd/deadcode@latest
+	deadcode ./...
 
 clean:
 	rm -rf bin/ dist/
