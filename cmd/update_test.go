@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/vertrost/argoiax/pkg/config"
-	"github.com/vertrost/argoiax/pkg/manifest"
-	"github.com/vertrost/argoiax/pkg/pr"
-	"github.com/vertrost/argoiax/pkg/registry"
-	"github.com/vertrost/argoiax/pkg/releasenotes"
+	"github.com/szhekpisov/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/manifest"
+	"github.com/szhekpisov/argoiax/pkg/pr"
+	"github.com/szhekpisov/argoiax/pkg/registry"
+	"github.com/szhekpisov/argoiax/pkg/releasenotes"
 )
 
 type mockCreator struct {

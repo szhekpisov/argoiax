@@ -9,11 +9,11 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
-	"github.com/vertrost/argoiax/pkg/config"
-	"github.com/vertrost/argoiax/pkg/manifest"
-	"github.com/vertrost/argoiax/pkg/output"
-	"github.com/vertrost/argoiax/pkg/registry"
-	"github.com/vertrost/argoiax/pkg/semver"
+	"github.com/szhekpisov/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/manifest"
+	"github.com/szhekpisov/argoiax/pkg/output"
+	"github.com/szhekpisov/argoiax/pkg/registry"
+	"github.com/szhekpisov/argoiax/pkg/semver"
 	"golang.org/x/sync/semaphore"
 )
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v68/github"
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 func newTestGitHubServer(t *testing.T) *github.Client {

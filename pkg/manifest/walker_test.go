@@ -38,7 +38,7 @@ func TestShouldIgnore(t *testing.T) {
 		want     bool
 	}{
 		{"exact match", []string{"vendor"}, "vendor", true},
-		{"basename match", []string{"*.txt"}, "dir/notes.txt", true},
+		{"basename match", []string{"**/*.txt"}, "dir/notes.txt", true},
 		{"no match", []string{"*.json"}, "dir/app.yaml", false},
 		{"globstar prefix", []string{"**/generated"}, "foo/bar/generated", true},
 		{"globstar suffix", []string{"tmp/**"}, "tmp/foo/bar.yaml", true},
@@ -54,44 +54,31 @@ func TestShouldIgnore(t *testing.T) {
 	}
 }
 
-func TestMatchesGlobstar(t *testing.T) {
+func TestMatchGlob(t *testing.T) {
 	tests := []struct {
 		name    string
-		path    string
 		pattern string
+		path    string
 		want    bool
 	}{
-		{"prefix globstar", "foo/bar/baz.yaml", "**/baz.yaml", true},
-		{"no match globstar", "foo/bar/baz.yaml", "**/qux.yaml", false},
-		{"dir prefix globstar", "dir/sub/bar.yaml", "dir/**/bar.yaml", true},
-		{"dir prefix no match", "other/sub/bar.yaml", "dir/**/bar.yaml", false},
-		{"dir suffix globstar", "dir/sub/anything", "dir/**", true},
-		{"bare double star", "anything/at/all", "**", true},
+		{"prefix globstar", "**/baz.yaml", "foo/bar/baz.yaml", true},
+		{"no match globstar", "**/qux.yaml", "foo/bar/baz.yaml", false},
+		{"dir prefix globstar", "dir/**/bar.yaml", "dir/sub/bar.yaml", true},
+		{"dir prefix no match", "dir/**/bar.yaml", "other/sub/bar.yaml", false},
+		{"dir suffix globstar", "dir/**", "dir/sub/anything", true},
+		{"bare double star", "**", "anything/at/all", true},
+		{"double globstar", "**/test/**", "apps/test/subdir/file.yaml", true},
+		{"double globstar nested", "**/test/**", "a/b/test/c/d/e.yaml", true},
+		{"double globstar no match", "**/test/**", "apps/prod/file.yaml", false},
+		{"exact match", "vendor", "vendor", true},
+		{"exact no match", "vendor", "other", false},
+		{"wildcard", "*.txt", "notes.txt", true},
+		{"wildcard no match", "*.json", "app.yaml", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := matchesGlobstar(tt.path, tt.pattern); got != tt.want {
-				t.Errorf("matchesGlobstar(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMatchesDeepPattern(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		pattern string
-		want    bool
-	}{
-		{"match at root", "bar.yaml", "bar.yaml", true},
-		{"match nested", "sub/bar.yaml", "bar.yaml", true},
-		{"no match", "sub/foo.yaml", "bar.yaml", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := matchesDeepPattern(tt.path, tt.pattern); got != tt.want {
-				t.Errorf("matchesDeepPattern(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
+			if got := matchGlob(tt.pattern, tt.path); got != tt.want {
+				t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
 			}
 		})
 	}

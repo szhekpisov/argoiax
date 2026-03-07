@@ -3,7 +3,7 @@ package releasenotes
 import (
 	"testing"
 
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 func TestMapChartToRepo_ExplicitConfig(t *testing.T) {

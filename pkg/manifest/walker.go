@@ -73,55 +73,59 @@ func isYAMLFile(path string) bool {
 
 func (w *Walker) shouldIgnore(path string) bool {
 	for _, pattern := range w.IgnorePatterns {
-		matched, err := filepath.Match(pattern, path)
-		if err == nil && matched {
+		if matchGlob(pattern, path) {
 			return true
 		}
-		// Also try matching against the base name
-		matched, err = filepath.Match(pattern, filepath.Base(path))
-		if err == nil && matched {
-			return true
-		}
-		// Try matching with ** patterns (simplified globstar)
-		if strings.Contains(pattern, "**") {
-			if matchesGlobstar(path, pattern) {
+	}
+	return false
+}
+
+// matchGlob matches a glob pattern against a path, supporting ** for crossing
+// directory boundaries (e.g., "**/test/**", "dir/**/bar.yaml").
+// Patterns without "/" match against any single path segment (like .gitignore).
+func matchGlob(pattern, path string) bool {
+	pattern = filepath.ToSlash(pattern)
+	path = filepath.ToSlash(path)
+
+	// Patterns without "/" match against any path segment.
+	if !strings.Contains(pattern, "/") {
+		for _, seg := range strings.Split(path, "/") {
+			if matched, err := filepath.Match(pattern, seg); err == nil && matched {
 				return true
 			}
 		}
-	}
-	return false
-}
-
-// matchesGlobstar handles patterns containing "**" which match across directory
-// boundaries (e.g., "**/foo", "dir/**/bar.yaml", "dir/**").
-func matchesGlobstar(path, pattern string) bool {
-	prefix, suffix, found := strings.Cut(pattern, "**/")
-	if !found {
-		// No "**/" found — pattern is "**" or ends with "**" (e.g., "dir/**").
-		prefix := strings.TrimSuffix(pattern, "**")
-		return prefix == "" || strings.HasPrefix(path, prefix)
-	}
-
-	if prefix != "" && !strings.HasPrefix(path, prefix) {
 		return false
 	}
 
-	subPath := path
-	if prefix != "" {
-		subPath = path[len(prefix):]
-	}
-
-	return matchesDeepPattern(subPath, suffix)
+	return matchSegments(
+		strings.Split(pattern, "/"),
+		strings.Split(path, "/"),
+	)
 }
 
-func matchesDeepPattern(path, pattern string) bool {
-	parts := strings.Split(path, string(filepath.Separator))
-	for i := range parts {
-		subPath := filepath.Join(parts[i:]...)
-		matched, err := filepath.Match(pattern, subPath)
-		if err == nil && matched {
-			return true
+func matchSegments(pattern, path []string) bool {
+	for len(pattern) > 0 {
+		if pattern[0] == "**" {
+			pattern = pattern[1:]
+			if len(pattern) == 0 {
+				return true
+			}
+			for i := range len(path) + 1 {
+				if matchSegments(pattern, path[i:]) {
+					return true
+				}
+			}
+			return false
 		}
+		if len(path) == 0 {
+			return false
+		}
+		matched, err := filepath.Match(pattern[0], path[0])
+		if err != nil || !matched {
+			return false
+		}
+		pattern = pattern[1:]
+		path = path[1:]
 	}
-	return false
+	return len(path) == 0
 }

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 func TestRetryTransport_RetriesOn502ThenSucceeds(t *testing.T) {

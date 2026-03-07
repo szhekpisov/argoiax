@@ -117,7 +117,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: szhekpisov/argoiax@v1
+      - uses: szhekpisov/argoiax@main
         with:
           command: update
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: szhekpisov/argoiax@v1
+      - uses: szhekpisov/argoiax@main
         with:
           command: scan
           dir: apps/
@@ -160,7 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: szhekpisov/argoiax@v1
+      - uses: szhekpisov/argoiax@main
         id: argoiax
         with:
           command: update

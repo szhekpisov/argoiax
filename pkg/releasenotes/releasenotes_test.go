@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 func TestCombinedBody_Nil(t *testing.T) {

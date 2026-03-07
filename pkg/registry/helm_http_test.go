@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/vertrost/argoiax/pkg/config"
-	"github.com/vertrost/argoiax/pkg/manifest"
-	"github.com/vertrost/argoiax/pkg/semver"
+	"github.com/szhekpisov/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/manifest"
+	"github.com/szhekpisov/argoiax/pkg/semver"
 )
 
 func TestHelmHTTPRegistry_ListVersions(t *testing.T) {

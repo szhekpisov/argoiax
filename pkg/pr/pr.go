@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/vertrost/argoiax/pkg/releasenotes"
+	"github.com/szhekpisov/argoiax/pkg/releasenotes"
 )
 
 // UpdateInfo contains all information needed to create a PR for a chart update.

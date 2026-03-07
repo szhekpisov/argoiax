@@ -15,7 +15,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/vertrost/argoiax/cmd.Version={{.Version}} -X github.com/vertrost/argoiax/cmd.Commit={{.Commit}} -X github.com/vertrost/argoiax/cmd.Date={{.Date}}
+      - -s -w -X github.com/szhekpisov/argoiax/cmd.Version={{.Version}} -X github.com/szhekpisov/argoiax/cmd.Commit={{.Commit}} -X github.com/szhekpisov/argoiax/cmd.Date={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:

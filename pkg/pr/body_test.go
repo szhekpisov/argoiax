@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vertrost/argoiax/pkg/releasenotes"
+	"github.com/szhekpisov/argoiax/pkg/releasenotes"
 )
 
 func TestRenderPRBody_Basic(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/vertrost/argoiax
+module github.com/szhekpisov/argoiax
 
 go 1.26.1
 

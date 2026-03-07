@@ -40,7 +40,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-          go build -ldflags "-s -w -X github.com/vertrost/argoiax/cmd.Version=${VERSION} -X github.com/vertrost/argoiax/cmd.Commit=${GITHUB_SHA} -X github.com/vertrost/argoiax/cmd.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o argoiax_verify
+          go build -ldflags "-s -w -X github.com/szhekpisov/argoiax/cmd.Version=${VERSION} -X github.com/szhekpisov/argoiax/cmd.Commit=${GITHUB_SHA} -X github.com/szhekpisov/argoiax/cmd.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o argoiax_verify
           OUTPUT=$(./argoiax_verify version)
           echo "Version output: ${OUTPUT}"
           if [[ "${OUTPUT}" != *"${VERSION}"* ]]; then

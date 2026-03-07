@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vertrost/argoiax/pkg/config"
-	"github.com/vertrost/argoiax/pkg/registry"
+	"github.com/szhekpisov/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/registry"
 )
 
 // ArtifactHubFetcher retrieves release notes from the ArtifactHub API.

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v68/github"
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 // GitHubCreator implements Creator using the GitHub API.

@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/vertrost/argoiax/cmd"
+	"github.com/szhekpisov/argoiax/cmd"
 )
 
 func main() {

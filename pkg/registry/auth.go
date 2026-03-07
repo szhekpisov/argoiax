@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/vertrost/argoiax/pkg/config"
+	"github.com/szhekpisov/argoiax/pkg/config"
 )
 
 const defaultHTTPTimeout = 60 * time.Second

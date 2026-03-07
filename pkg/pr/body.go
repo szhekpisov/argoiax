@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/vertrost/argoiax/pkg/releasenotes"
+	"github.com/szhekpisov/argoiax/pkg/releasenotes"
 )
 
 // RenderPRBody generates a Dependabot-style PR body for a chart update.

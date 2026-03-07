@@ -4,9 +4,9 @@ VERSION ?= dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS  = -s -w \
-           -X github.com/vertrost/argoiax/cmd.Version=$(VERSION) \
-           -X github.com/vertrost/argoiax/cmd.Commit=$(COMMIT) \
-           -X github.com/vertrost/argoiax/cmd.Date=$(DATE)
+           -X github.com/szhekpisov/argoiax/cmd.Version=$(VERSION) \
+           -X github.com/szhekpisov/argoiax/cmd.Commit=$(COMMIT) \
+           -X github.com/szhekpisov/argoiax/cmd.Date=$(DATE)
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/argoiax .
