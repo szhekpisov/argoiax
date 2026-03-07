@@ -96,17 +96,6 @@ argoiax update --config path/to/argoiax.yaml --repo owner/repo
 argoiax update --dir apps/ --repo owner/repo --log-level debug
 ```
 
-### Development
-
-```bash
-make test         # run tests with race detector
-make lint         # run golangci-lint
-make ci           # lint + test + deadcode analysis
-make fmt          # format code
-make vet          # run go vet
-make tidy         # run go mod tidy
-```
-
 ## Running via GitHub Action
 
 Add a workflow file to your GitOps repository (e.g. `.github/workflows/argoiax.yml`):
@@ -304,12 +293,6 @@ releaseNotes:
 | `maxOpenPRs` | Maximum concurrent open PRs | `10` |
 | `releaseNotes.enabled` | Fetch and include release notes in PRs | `true` |
 | `releaseNotes.sources` | Release note sources in priority order | `[github-releases, artifacthub, changelog]` |
-
-## Docker
-
-```bash
-docker run --rm -v $(pwd):/data ghcr.io/szhekpisov/argoiax scan --dir /data
-```
 
 ## Supported ArgoCD patterns
 
