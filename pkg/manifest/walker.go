@@ -89,7 +89,7 @@ func matchGlob(pattern, path string) bool {
 
 	// Patterns without "/" match against any path segment.
 	if !strings.Contains(pattern, "/") {
-		for _, seg := range strings.Split(path, "/") {
+		for seg := range strings.SplitSeq(path, "/") {
 			if matched, err := filepath.Match(pattern, seg); err == nil && matched {
 				return true
 			}
