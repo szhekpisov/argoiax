@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: "1.25.7"
+          go-version: "1.26.1"
 
       - name: Run tests
         run: go test ./...
@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: "1.25.7"
+          go-version: "1.26.1"
 
       - name: Run fuzz tests
         run: |
@@ -64,7 +64,7 @@ jobs:
 
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: "1.25.7"
+          go-version: "1.26.1"
 
       - name: Run tests with coverage
         run: go test ./... -coverprofile=coverage.out
