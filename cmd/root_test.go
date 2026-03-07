@@ -37,3 +37,22 @@ func TestSetupLogging(t *testing.T) {
 		})
 	}
 }
+
+func TestExecute(t *testing.T) {
+	// Execute() with no args prints help and returns nil
+	err := Execute()
+	if err != nil {
+		t.Fatalf("Execute() returned unexpected error: %v", err)
+	}
+}
+
+func TestRootCmd_PersistentPreRun(t *testing.T) {
+	// Execute scan with --log-level=debug on an empty dir to exercise PersistentPreRun
+	cmd := newRootCmd()
+	dir := t.TempDir()
+	cmd.SetArgs([]string{"scan", "--dir", dir, "--log-level", "debug"})
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

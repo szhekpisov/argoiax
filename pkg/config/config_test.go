@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,6 +126,50 @@ auth:
 	}
 	if cfg.Auth.HelmRepos[0].Password != "mypass" {
 		t.Errorf("expected password mypass, got %s", cfg.Auth.HelmRepos[0].Password)
+	}
+}
+
+func TestLoad_InvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "argoiax.yaml")
+
+	content := `
+version: 1
+scanDirs: [apps/]
+settings:
+  prStrategy: [this is not valid yaml
+  broken: {unclosed
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+	if !strings.Contains(err.Error(), "parsing config") {
+		t.Errorf("expected 'parsing config' in error, got: %v", err)
+	}
+}
+
+func TestLoad_ValidationError(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "argoiax.yaml")
+
+	content := `
+version: 99
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid config version")
+	}
+	if !strings.Contains(err.Error(), "invalid config") {
+		t.Errorf("expected 'invalid config' in error, got: %v", err)
 	}
 }
 

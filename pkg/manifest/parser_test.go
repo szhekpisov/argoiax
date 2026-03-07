@@ -279,6 +279,242 @@ spec:
 	}
 }
 
+func TestParse_InvalidYAML(t *testing.T) {
+	input := `{{{not valid yaml:::`
+	_, err := Parse(strings.NewReader(input), "invalid.yaml")
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestParse_EmptyDocument(t *testing.T) {
+	input := `# just a comment
+`
+	refs, err := Parse(strings.NewReader(input), "empty.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for empty document, got %d", len(refs))
+	}
+}
+
+func TestParse_AppSetMissingTemplate(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: no-template
+spec:
+  generators:
+    - clusters: {}
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for AppSet without template, got %d", len(refs))
+	}
+}
+
+func TestParse_AppSetMissingTemplateSpec(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: no-template-spec
+spec:
+  generators:
+    - clusters: {}
+  template:
+    metadata:
+      name: test
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for AppSet without template.spec, got %d", len(refs))
+	}
+}
+
+func TestParse_NonMappingRoot(t *testing.T) {
+	input := `
+- item1
+- item2
+- item3
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for non-mapping root, got %d", len(refs))
+	}
+}
+
+func TestParse_ScalarSpec(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+spec: not-a-mapping
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for scalar spec, got %d", len(refs))
+	}
+}
+
+func TestParse_AppSetScalarTemplate(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: test
+spec:
+  generators:
+    - clusters: {}
+  template: not-a-mapping
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for scalar template, got %d", len(refs))
+	}
+}
+
+func TestParse_NonMappingSourceInSequence(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  sources:
+    - not-a-mapping
+    - repoURL: https://charts.example.com
+      chart: mychart
+      targetRevision: 1.0.0
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// The non-mapping entry should be skipped, only the valid one returned
+	if len(refs) != 1 {
+		t.Fatalf("expected 1 ref (non-mapping skipped), got %d", len(refs))
+	}
+	if refs[0].ChartName != "mychart" {
+		t.Errorf("expected mychart, got %s", refs[0].ChartName)
+	}
+}
+
+func TestParse_AppSetMissingSpec(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: no-spec
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for AppSet without spec, got %d", len(refs))
+	}
+}
+
+func TestParse_ApplicationMissingSpec(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: no-spec
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for Application without spec, got %d", len(refs))
+	}
+}
+
+func TestParse_UnknownKind(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for unknown kind, got %d", len(refs))
+	}
+}
+
+func TestParse_SourceWithRefOnly(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  sources:
+    - repoURL: https://github.com/myorg/config.git
+      targetRevision: 1.0.0
+      ref: values
+    - repoURL: https://charts.example.com
+      chart: mychart
+      targetRevision: 2.0.0
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// First source has ref and no chart, so it should be skipped
+	if len(refs) != 1 {
+		t.Fatalf("expected 1 ref (ref-only skipped), got %d", len(refs))
+	}
+	if refs[0].ChartName != "mychart" {
+		t.Errorf("expected mychart, got %s", refs[0].ChartName)
+	}
+}
+
+func TestParse_EmptyTargetRevision(t *testing.T) {
+	input := `
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  source:
+    repoURL: https://charts.example.com
+    chart: mychart
+    targetRevision: ""
+`
+	refs, err := Parse(strings.NewReader(input), "test.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for empty targetRevision, got %d", len(refs))
+	}
+}
+
 func TestLooksLikeSemver(t *testing.T) {
 	tests := []struct {
 		input string

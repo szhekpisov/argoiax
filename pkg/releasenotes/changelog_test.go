@@ -127,6 +127,51 @@ func TestChangelogFetcher_Fetch_VersionNotInChangelog(t *testing.T) {
 	}
 }
 
+func TestChangelogFetcher_Fetch_AlternativeFilename(t *testing.T) {
+	changelog := `# Changelog
+
+## [2.0.0] - 2024-03-01
+- Major rewrite
+`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only respond to lowercase changelog.md on main branch
+		if r.URL.Path == "/myorg/myrepo/main/changelog.md" {
+			_, _ = w.Write([]byte(changelog))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://raw.githubusercontent.com")
+	f := NewChangelogFetcher(client)
+
+	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"2.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Version != "2.0.0" {
+		t.Errorf("entries[0].Version = %q, want %q", entries[0].Version, "2.0.0")
+	}
+	if sourceURL == "" {
+		t.Error("expected non-empty sourceURL")
+	}
+}
+
+func TestExtractVersionSection_NoNewlineAtEnd(t *testing.T) {
+	// Content ends without a trailing newline after the last section
+	changelog := "## [1.0.0]\n- First release\n\n## [0.9.0]\n- Beta content with no trailing newline"
+
+	section := extractVersionSection(changelog, "0.9.0")
+	if section != "- Beta content with no trailing newline" {
+		t.Errorf("unexpected section: %q", section)
+	}
+}
+
 func TestExtractVersionSection(t *testing.T) {
 	changelog := `# Changelog
 
@@ -181,6 +226,25 @@ func TestExtractVersionSection_LastEntry(t *testing.T) {
 	}
 }
 
+func TestExtractVersionSection_HeaderNoNewline(t *testing.T) {
+	// Header at the very end of the file with no newline after it
+	changelog := "## 1.0.0"
+	section := extractVersionSection(changelog, "1.0.0")
+	if section != "" {
+		t.Errorf("expected empty section for header-only content, got %q", section)
+	}
+}
+
+func TestChangelogFetcher_Fetch_ConnectionError(t *testing.T) {
+	client := newRewriteClient("http://127.0.0.1:1", "https://raw.githubusercontent.com")
+	f := NewChangelogFetcher(client)
+
+	_, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	if err == nil {
+		t.Error("expected error on connection failure")
+	}
+}
+
 func TestContainsVersion(t *testing.T) {
 	tests := []struct {
 		header  string
@@ -206,7 +270,7 @@ func TestContainsVersion(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStr(s, substr))
+	return len(s) >= len(substr) && (s == substr || s != "" && containsStr(s, substr))
 }
 
 func containsStr(s, sub string) bool {

@@ -53,6 +53,18 @@ func TestDetectBreaking_CombinedMajorAndContent(t *testing.T) {
 	}
 }
 
+func TestDetectBreaking_SkipsBlankLines(t *testing.T) {
+	body := "BREAKING CHANGE: something\n\nNormal line\n"
+	result := DetectBreaking("1.0.0", "1.1.0", body)
+	if !result.IsBreaking {
+		t.Error("expected breaking")
+	}
+	// Only the matching line should be in reasons, blank line skipped
+	if len(result.Reasons) != 1 {
+		t.Errorf("expected 1 reason, got %d: %v", len(result.Reasons), result.Reasons)
+	}
+}
+
 func TestDetectBreaking_ReasonsCapped(t *testing.T) {
 	body := `BREAKING CHANGE: first
 BREAKING CHANGE: second

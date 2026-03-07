@@ -94,6 +94,17 @@ func TestRenderTemplate_InvalidTemplate(t *testing.T) {
 	}
 }
 
+func TestRenderTemplate_ExecuteError(t *testing.T) {
+	// Use a template that calls a method on a nil value, causing an execute-time error.
+	_, err := RenderTemplate("{{.NonExistent.Sub}}", (*UpdateInfo)(nil))
+	if err == nil {
+		t.Error("expected error for template execution failure")
+	}
+	if !strings.Contains(err.Error(), "executing template") {
+		t.Errorf("expected 'executing template' in error, got: %v", err)
+	}
+}
+
 func TestNewGroupTemplateData_SingleFile(t *testing.T) {
 	group := UpdateGroup{
 		Updates: []UpdateInfo{

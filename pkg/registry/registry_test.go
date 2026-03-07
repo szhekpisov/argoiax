@@ -57,12 +57,12 @@ func TestAuthTransport_BasicAuth(t *testing.T) {
 		Password: "pass",
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx
+	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx // test only
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if gotAuth == "" {
 		t.Error("expected Authorization header to be set")
@@ -85,12 +85,12 @@ func TestAuthTransport_BearerToken(t *testing.T) {
 		Token: "my-token",
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx
+	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx // test only
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if gotAuth != "Bearer my-token" {
 		t.Errorf("expected Bearer auth, got %q", gotAuth)
@@ -107,12 +107,12 @@ func TestAuthTransport_NoAuth(t *testing.T) {
 
 	transport := &AuthTransport{}
 
-	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx
+	req, _ := http.NewRequest(http.MethodGet, server.URL, http.NoBody) //nolint:noctx // test only
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if gotAuth != "" {
 		t.Errorf("expected no auth header, got %q", gotAuth)

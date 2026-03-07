@@ -63,6 +63,15 @@ func TestLatestStable_SkipsPreRelease(t *testing.T) {
 	}
 }
 
+func TestLatestStable_InvalidConstraint(t *testing.T) {
+	versions := []string{"1.0.0", "1.1.0", "2.0.0"}
+
+	_, err := LatestStable(versions, "not a valid constraint!!!")
+	if err == nil {
+		t.Error("expected error for invalid constraint string")
+	}
+}
+
 func TestIsMajorBump(t *testing.T) {
 	tests := []struct {
 		current, latest string
@@ -91,10 +100,10 @@ func TestEqual(t *testing.T) {
 		{"1.0.0", "1.0.0", true},
 		{"1.0.0", "1.1.0", false},
 		{"v2.0.0", "v2.0.0", true},
-		{"invalid", "invalid", true},  // string fallback: equal
-		{"invalid", "other", false},   // string fallback: not equal
-		{"1.0.0", "invalid", false},   // string fallback: not equal
-		{"invalid", "1.0.0", false},   // string fallback
+		{"invalid", "invalid", true},
+		{"invalid", "other", false},
+		{"1.0.0", "invalid", false},
+		{"invalid", "1.0.0", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
@@ -158,6 +167,26 @@ func TestVersionsBetween_EdgeCases(t *testing.T) {
 	result = VersionsBetween([]string{"0.5.0", "3.0.0"}, "1.0.0", "2.0.0")
 	if len(result) != 0 {
 		t.Errorf("expected no versions between, got %v", result)
+	}
+}
+
+func TestVersionsBetween_SkipsInvalid(t *testing.T) {
+	// List includes invalid version strings that should be skipped
+	versions := []string{"1.0.0", "invalid", "1.5.0", "also-bad", "2.0.0"}
+	between := VersionsBetween(versions, "1.0.0", "2.0.0")
+	if len(between) != 1 || between[0] != "1.5.0" {
+		t.Errorf("expected [1.5.0], got %v", between)
+	}
+}
+
+func TestLatestStable_AllInvalid(t *testing.T) {
+	versions := []string{"invalid", "not-a-version", "garbage"}
+	latest, err := LatestStable(versions, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if latest != "" {
+		t.Errorf("expected empty string for all invalid versions, got %s", latest)
 	}
 }
 

@@ -2,6 +2,7 @@ package releasenotes
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/vertrost/argoiax/pkg/config"
@@ -172,6 +173,49 @@ func (f *stubFetcher) Fetch(_ context.Context, _ GitHubRepo, _ []string) ([]Entr
 	return f.entries, f.url, f.err
 }
 func (f *stubFetcher) Name() string { return f.name }
+
+func TestOrchestrator_FetchNotes_FetcherError(t *testing.T) {
+	o := &Orchestrator{
+		cfg: config.ReleaseNotesConfig{Enabled: true, MaxLength: 0},
+		fetchers: []Fetcher{
+			&stubFetcher{name: "failing", err: errors.New("connection refused")}, // returns error
+			&stubFetcher{
+				name:    "fallback",
+				entries: []Entry{{Version: "1.0.0", Body: "notes from fallback"}},
+				url:     "https://example.com/fallback",
+			},
+		},
+	}
+
+	got := o.FetchNotes(context.Background(), "chart", "https://grafana.github.io/helm-charts", []string{"1.0.0"}, nil)
+	if got == nil {
+		t.Fatal("expected non-nil notes from fallback fetcher")
+	}
+	if len(got.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(got.Entries))
+	}
+	if got.Entries[0].Body != "notes from fallback" {
+		t.Errorf("unexpected body: %q", got.Entries[0].Body)
+	}
+	if got.SourceURL != "https://example.com/fallback" {
+		t.Errorf("unexpected source URL: %s", got.SourceURL)
+	}
+}
+
+func TestOrchestrator_FetchNotes_AllFetchersEmpty(t *testing.T) {
+	o := &Orchestrator{
+		cfg: config.ReleaseNotesConfig{Enabled: true},
+		fetchers: []Fetcher{
+			&stubFetcher{name: "first", entries: nil},
+			&stubFetcher{name: "second", entries: []Entry{}},
+		},
+	}
+
+	got := o.FetchNotes(context.Background(), "chart", "https://grafana.github.io/helm-charts", []string{"1.0.0"}, nil)
+	if got != nil {
+		t.Errorf("expected nil when all fetchers return empty, got %+v", got)
+	}
+}
 
 func TestOrchestrator_FetchNotes_FallbackToSecondSource(t *testing.T) {
 	o := &Orchestrator{

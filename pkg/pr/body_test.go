@@ -113,6 +113,60 @@ func TestRenderPRBody_NoReleaseNotes(t *testing.T) {
 	}
 }
 
+func TestRenderPRBody_BreakingNoSourceURL(t *testing.T) {
+	info := UpdateInfo{
+		ChartName:       "grafana",
+		RepoURL:         "https://grafana.github.io/helm-charts",
+		OldVersion:      "7.0.1",
+		NewVersion:      "8.2.0",
+		IsBreaking:      true,
+		BreakingReasons: []string{"Major version bump detected"},
+		ReleaseNotes: &releasenotes.Notes{
+			SourceURL: "", // empty source URL
+			Entries:   []releasenotes.Entry{{Version: "8.2.0", Body: "- Some changes"}},
+		},
+	}
+
+	body := RenderPRBody(&info)
+
+	if !strings.Contains(body, "> [!WARNING]") {
+		t.Error("expected breaking change warning")
+	}
+	// Should render badge without link when SourceURL is empty
+	if !strings.Contains(body, "![Breaking change](https://img.shields.io/badge/change-breaking-red)") {
+		t.Error("expected unlinked breaking badge")
+	}
+	// Should NOT contain a linked badge
+	if strings.Contains(body, "[![Breaking change]") {
+		t.Error("did not expect linked breaking badge when SourceURL is empty")
+	}
+}
+
+func TestRenderPRBody_BreakingNoReleaseNotes(t *testing.T) {
+	info := UpdateInfo{
+		ChartName:       "grafana",
+		RepoURL:         "https://grafana.github.io/helm-charts",
+		OldVersion:      "7.0.1",
+		NewVersion:      "8.2.0",
+		IsBreaking:      true,
+		BreakingReasons: []string{"Major version bump detected"},
+		// ReleaseNotes is nil
+	}
+
+	body := RenderPRBody(&info)
+
+	if !strings.Contains(body, "> [!WARNING]") {
+		t.Error("expected breaking change warning")
+	}
+	// Should render unlinked badge when ReleaseNotes is nil
+	if !strings.Contains(body, "![Breaking change](https://img.shields.io/badge/change-breaking-red)") {
+		t.Error("expected unlinked breaking badge")
+	}
+	if strings.Contains(body, "[![Breaking change]") {
+		t.Error("did not expect linked breaking badge when ReleaseNotes is nil")
+	}
+}
+
 func TestRenderGroupPRBody_MultipleCharts(t *testing.T) {
 	group := UpdateGroup{
 		Updates: []UpdateInfo{

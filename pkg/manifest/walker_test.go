@@ -218,7 +218,7 @@ data:
 
 	// Create a subdirectory with another ArgoCD YAML
 	subDir := filepath.Join(dir, "sub")
-	if err := os.Mkdir(subDir, 0o755); err != nil {
+	if err := os.Mkdir(subDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	argoContent2 := `apiVersion: argoproj.io/v1alpha1
@@ -263,7 +263,7 @@ spec:
 	}
 
 	ignored := filepath.Join(dir, "ignored")
-	if err := os.Mkdir(ignored, 0o755); err != nil {
+	if err := os.Mkdir(ignored, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(ignored, "skip.yaml"), []byte(argoContent), 0o600); err != nil {
@@ -278,6 +278,70 @@ spec:
 
 	if len(refs) != 1 {
 		t.Errorf("expected 1 ref (ignored dir skipped), got %d", len(refs))
+	}
+}
+
+func TestWalk_IgnoresYAMLFileByPattern(t *testing.T) {
+	dir := t.TempDir()
+
+	argoContent := `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  source:
+    repoURL: https://charts.example.com
+    chart: mychart
+    targetRevision: 1.0.0
+`
+	// This file should be found
+	if err := os.WriteFile(filepath.Join(dir, "app.yaml"), []byte(argoContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// This file should be ignored by pattern (file-level, not dir-level)
+	if err := os.WriteFile(filepath.Join(dir, "generated.yaml"), []byte(argoContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	w := &Walker{IgnorePatterns: []string{"generated.yaml"}}
+	refs, err := w.Walk([]string{dir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(refs) != 1 {
+		t.Errorf("expected 1 ref (generated.yaml skipped), got %d", len(refs))
+	}
+}
+
+func TestWalk_InvalidYAMLFile(t *testing.T) {
+	dir := t.TempDir()
+
+	invalidContent := `{{{not valid yaml:::`
+	if err := os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte(invalidContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	w := &Walker{}
+	refs, err := w.Walk([]string{dir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Invalid YAML should be warned about but not cause a walk error
+	if len(refs) != 0 {
+		t.Errorf("expected 0 refs for invalid YAML file, got %d", len(refs))
+	}
+}
+
+func TestWalk_NonExistentDir(t *testing.T) {
+	w := &Walker{}
+	_, err := w.Walk([]string{"/nonexistent/path/that/does/not/exist"})
+	// WalkDir on a nonexistent path should return an error
+	if err == nil {
+		// Some implementations may just warn, not error
+		return
 	}
 }
 

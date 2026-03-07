@@ -95,6 +95,38 @@ func TestGitHubFetcher_Fetch_ServerError(t *testing.T) {
 	}
 }
 
+func TestGitHubFetcher_Fetch_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{invalid json"))
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// JSON decode error is treated as a fetch failure, so no entries
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries on invalid JSON, got %d", len(entries))
+	}
+}
+
+func TestGitHubFetcher_Fetch_ConnectionError(t *testing.T) {
+	// Use a client pointing at an invalid URL to force a transport error
+	client := newRewriteClient("http://127.0.0.1:1", "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries on connection error, got %d", len(entries))
+	}
+}
+
 // newRewriteClient creates an HTTP client that rewrites requests from oldBase to newBase.
 func newRewriteClient(newBase, oldBase string) *http.Client {
 	return &http.Client{
@@ -117,7 +149,7 @@ func (t *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req.URL.RawQuery != "" {
 		newURL += "?" + req.URL.RawQuery
 	}
-	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body)
+	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body) //nolint:gosec // test-only URL rewrite
 	if err != nil {
 		return nil, err
 	}

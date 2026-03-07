@@ -99,28 +99,57 @@ func (f *ChangelogFetcher) tryChangelogFile(ctx context.Context, repo GitHubRepo
 }
 
 // extractVersionSection extracts the section for a specific version from changelog content.
+// It uses the pre-compiled nextHeaderRe to find all version headers, then identifies the
+// target version via string matching, avoiding per-call regex compilation.
 func extractVersionSection(content, version string) string {
-	// Match version headers like "## 1.2.3", "## v1.2.3", "## [1.2.3]", "# 1.2.3"
-	versionRe := regexp.MustCompile(
-		fmt.Sprintf(`(?m)^#{1,3}\s+\[?v?%s\]?.*$`, regexp.QuoteMeta(version)),
-	)
+	locs := nextHeaderRe.FindAllStringIndex(content, -1)
 
-	loc := versionRe.FindStringIndex(content)
-	if loc == nil {
-		return ""
+	for i, loc := range locs {
+		// Extract the full header line.
+		lineEnd := strings.IndexByte(content[loc[0]:], '\n')
+		var headerLine string
+		if lineEnd >= 0 {
+			headerLine = content[loc[0] : loc[0]+lineEnd]
+		} else {
+			headerLine = content[loc[0]:]
+		}
+
+		if !containsVersion(headerLine, version) {
+			continue
+		}
+
+		// Section starts after the header line.
+		sectionStart := loc[0] + len(headerLine)
+		if lineEnd >= 0 {
+			sectionStart++ // skip the newline
+		}
+
+		var sectionEnd int
+		if i+1 < len(locs) {
+			sectionEnd = locs[i+1][0]
+		} else {
+			sectionEnd = len(content)
+		}
+
+		return strings.TrimSpace(content[sectionStart:sectionEnd])
 	}
 
-	start := loc[1]
+	return ""
+}
 
-	// Find the next version header
-	nextLoc := nextHeaderRe.FindStringIndex(content[start:])
-
-	var section string
-	if nextLoc != nil {
-		section = content[start : start+nextLoc[0]]
-	} else {
-		section = content[start:]
+// containsVersion reports whether a header line contains the exact version string,
+// ensuring it's not part of a larger number (e.g., "1.2.3" must not match "1.2.30").
+func containsVersion(header, version string) bool {
+	i := strings.Index(header, version)
+	if i < 0 {
+		return false
 	}
-
-	return strings.TrimSpace(section)
+	end := i + len(version)
+	if end < len(header) && header[end] >= '0' && header[end] <= '9' {
+		return false
+	}
+	if i > 0 && header[i-1] >= '0' && header[i-1] <= '9' {
+		return false
+	}
+	return true
 }

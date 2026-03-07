@@ -83,6 +83,34 @@ func TestGitRegistry_ListVersions_Paginated(t *testing.T) {
 	}
 }
 
+func TestGitRegistry_ListVersions_ConnectionError(t *testing.T) {
+	reg := &GitRegistry{client: newRewriteClient("http://127.0.0.1:1")}
+
+	ref := &manifest.ChartReference{
+		RepoURL: "https://github.com/myorg/myrepo",
+		Type:    manifest.SourceTypeGit,
+	}
+
+	_, err := reg.ListVersions(context.Background(), ref)
+	if err == nil {
+		t.Error("expected error for connection failure")
+	}
+}
+
+func TestGitRegistry_ListVersions_EmptyOwnerRepo(t *testing.T) {
+	reg := &GitRegistry{client: &http.Client{}}
+
+	ref := &manifest.ChartReference{
+		RepoURL: "no-slash-url",
+		Type:    manifest.SourceTypeGit,
+	}
+
+	_, err := reg.ListVersions(context.Background(), ref)
+	if err == nil {
+		t.Error("expected error for URL producing empty owner/repo")
+	}
+}
+
 func TestGitRegistry_ListVersions_InvalidURL(t *testing.T) {
 	reg := &GitRegistry{
 		client: &http.Client{},
@@ -117,6 +145,28 @@ func TestGitRegistry_ListVersions_ServerError(t *testing.T) {
 	_, err := reg.ListVersions(context.Background(), ref)
 	if err == nil {
 		t.Error("expected error on server error response")
+	}
+}
+
+func TestGitRegistry_ListVersions_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{invalid json"))
+	}))
+	defer server.Close()
+
+	reg := &GitRegistry{
+		client: newRewriteClient(server.URL),
+	}
+
+	ref := &manifest.ChartReference{
+		RepoURL: "https://github.com/myorg/myrepo",
+		Type:    manifest.SourceTypeGit,
+	}
+
+	_, err := reg.ListVersions(context.Background(), ref)
+	if err == nil {
+		t.Error("expected error for invalid JSON response")
 	}
 }
 
@@ -192,7 +242,7 @@ func (t *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req.URL.RawQuery != "" {
 		newURL += "?" + req.URL.RawQuery
 	}
-	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body)
+	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body) //nolint:gosec // test-only URL rewrite
 	if err != nil {
 		return nil, err
 	}

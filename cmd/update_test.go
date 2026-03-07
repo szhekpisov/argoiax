@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -404,12 +405,12 @@ func TestResolveRepo(t *testing.T) {
 
 // errMockCreator is a mock Creator that returns errors from its methods.
 type errMockCreator struct {
-	existingErr  error
-	existingVal  bool
-	createPRErr  error
-	groupPRErr   error
-	prs          []*pr.UpdateInfo
-	groupPRs     []pr.UpdateGroup
+	existingErr error
+	existingVal bool
+	createPRErr error
+	groupPRErr  error
+	prs         []*pr.UpdateInfo
+	groupPRs    []pr.UpdateGroup
 }
 
 func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (bool, error) {
@@ -459,7 +460,7 @@ func TestCreatePerChartPRs_CreatePRError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{createPRErr: fmt.Errorf("API error")}
+	mock := &errMockCreator{createPRErr: errors.New("API error")}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
@@ -506,7 +507,7 @@ func TestCreatePerFilePRs_CreateGroupPRError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{groupPRErr: fmt.Errorf("group PR API error")}
+	mock := &errMockCreator{groupPRErr: errors.New("group PR API error")}
 	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
@@ -734,11 +735,11 @@ func TestCreatePerChartPRs_ExistingPRCheckError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{existingErr: fmt.Errorf("API error"), existingVal: true}
+	mock := &errMockCreator{existingErr: errors.New("API error"), existingVal: true}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	// ExistingPR returns error but existingVal is false (default when err), so it continues
-	mock2 := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	mock2 := &errMockCreator{existingErr: errors.New("API error")}
 	count := createPerChartPRs(context.Background(), &settings, updates, mock2, 10)
 	_ = mock
 	// Should still try to create the PR despite the ExistingPR error
@@ -751,7 +752,7 @@ func TestCreatePerFilePRs_ExistingPRCheckError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	mock := &errMockCreator{existingErr: errors.New("API error")}
 	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
@@ -776,7 +777,7 @@ func TestCreateBatchPR_ExistingPRCheckError(t *testing.T) {
 	dir := t.TempDir()
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	mock := &errMockCreator{existingErr: errors.New("API error")}
 	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
 
 	count, err := createBatchPR(context.Background(), &settings, updates, mock)
@@ -793,7 +794,7 @@ func TestCreateBatchPR_CreateGroupPRError(t *testing.T) {
 	dir := t.TempDir()
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{groupPRErr: fmt.Errorf("group PR API error")}
+	mock := &errMockCreator{groupPRErr: errors.New("group PR API error")}
 	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
 
 	_, err := createBatchPR(context.Background(), &settings, updates, mock)
@@ -918,7 +919,7 @@ func TestDispatchPRs_BatchError(t *testing.T) {
 	settings.PRStrategy = config.StrategyBatch
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &errMockCreator{groupPRErr: fmt.Errorf("batch API error")}
+	mock := &errMockCreator{groupPRErr: errors.New("batch API error")}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)

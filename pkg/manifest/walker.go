@@ -82,15 +82,36 @@ func (w *Walker) shouldIgnore(path string) bool {
 		if err == nil && matched {
 			return true
 		}
-		// Try matching with ** patterns (simplified glob)
+		// Try matching with ** patterns (simplified globstar)
 		if strings.Contains(pattern, "**") {
-			suffix := pattern[strings.LastIndex(pattern, "**/")+3:]
-			if matchesDeepPattern(path, suffix) {
+			if matchesGlobstar(path, pattern) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// matchesGlobstar handles patterns containing "**" which match across directory
+// boundaries (e.g., "**/foo", "dir/**/bar.yaml", "dir/**").
+func matchesGlobstar(path, pattern string) bool {
+	prefix, suffix, found := strings.Cut(pattern, "**/")
+	if !found {
+		// No "**/" found — pattern is "**" or ends with "**" (e.g., "dir/**").
+		prefix := strings.TrimSuffix(pattern, "**")
+		return prefix == "" || strings.HasPrefix(path, prefix)
+	}
+
+	if prefix != "" && !strings.HasPrefix(path, prefix) {
+		return false
+	}
+
+	subPath := path
+	if prefix != "" {
+		subPath = path[len(prefix):]
+	}
+
+	return matchesDeepPattern(subPath, suffix)
 }
 
 func matchesDeepPattern(path, pattern string) bool {

@@ -110,5 +110,6 @@ formatters:
     - goimports
 
 output:
+  sort-results: true
   sort-order:
     - file
