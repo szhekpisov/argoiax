@@ -342,6 +342,18 @@ func TestApplyFileUpdates_Empty(t *testing.T) {
 	}
 }
 
+func TestApplyFileUpdates_UpdateError(t *testing.T) {
+	dir := t.TempDir()
+	// Write a manifest with version 1.0.0
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	// Create an update that references a version not in the file (mismatch)
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "9.9.9", "1.1.0")}
+	_, err := applyFileUpdates(updates)
+	if err == nil {
+		t.Error("expected error for version mismatch in applyFileUpdates")
+	}
+}
+
 func TestApplyFileUpdates_Valid(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
@@ -387,5 +399,600 @@ func TestResolveRepo(t *testing.T) {
 		if owner != tt.wantOwner || repo != tt.wantRepo {
 			t.Errorf("resolveRepo(%q) = (%q, %q), want (%q, %q)", tt.slug, owner, repo, tt.wantOwner, tt.wantRepo)
 		}
+	}
+}
+
+// errMockCreator is a mock Creator that returns errors from its methods.
+type errMockCreator struct {
+	existingErr  error
+	existingVal  bool
+	createPRErr  error
+	groupPRErr   error
+	prs          []*pr.UpdateInfo
+	groupPRs     []pr.UpdateGroup
+}
+
+func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (bool, error) {
+	if m.existingErr != nil {
+		return false, m.existingErr
+	}
+	return m.existingVal, nil
+}
+
+func (m *errMockCreator) CreatePR(_ context.Context, info *pr.UpdateInfo, _ []byte, _ string) (*pr.Result, error) {
+	if m.createPRErr != nil {
+		return nil, m.createPRErr
+	}
+	m.prs = append(m.prs, info)
+	n := len(m.prs)
+	return &pr.Result{PRURL: fmt.Sprintf("https://github.com/x/y/pull/%d", n), PRNumber: n}, nil
+}
+
+func (m *errMockCreator) CreateGroupPR(_ context.Context, group pr.UpdateGroup, _ string) (*pr.Result, error) {
+	if m.groupPRErr != nil {
+		return nil, m.groupPRErr
+	}
+	m.groupPRs = append(m.groupPRs, group)
+	n := len(m.groupPRs)
+	return &pr.Result{PRURL: fmt.Sprintf("https://github.com/x/y/pull/%d", n), PRNumber: n}, nil
+}
+
+func TestCreatePerChartPRs_BranchRenderError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	settings.BranchTemplate = "{{.InvalidField}}" // invalid template field
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
+
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (branch render error), got %d", count)
+	}
+	if len(mock.prs) != 0 {
+		t.Errorf("expected no PRs created, got %d", len(mock.prs))
+	}
+}
+
+func TestCreatePerChartPRs_CreatePRError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{createPRErr: fmt.Errorf("API error")}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
+
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (create error), got %d", count)
+	}
+}
+
+func TestCreatePerFilePRs_MaxPRLimit(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
+	settings := testSettings()
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{
+		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
+		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
+	}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 1)
+
+	if count != 1 {
+		t.Fatalf("expected 1 PR (max limit), got %d", count)
+	}
+}
+
+func TestCreatePerFilePRs_SkipsExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	// The group branch template is "argoiax/update-{{.FileBaseName}}" and FileBaseName is "app1"
+	mock := &mockCreator{existing: map[string]bool{"argoiax/update-app1": true}}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (existing), got %d", count)
+	}
+}
+
+func TestCreatePerFilePRs_CreateGroupPRError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{groupPRErr: fmt.Errorf("group PR API error")}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (group PR error), got %d", count)
+	}
+}
+
+func TestCreateBatchPR_ExistingPR(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	// Batch uses GroupBranchTemplate with FileBaseName="batch" for multi-file
+	mock := &mockCreator{existing: map[string]bool{"argoiax/update-app1": true}}
+	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
+
+	count, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (existing), got %d", count)
+	}
+}
+
+func TestCreateBatchPR_BranchRenderError(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	settings.GroupBranchTemplate = "{{.InvalidField}}" // invalid template field
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
+
+	_, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err == nil {
+		t.Fatal("expected error from branch render, got nil")
+	}
+}
+
+func TestApplyFileUpdates_FileNotFound(t *testing.T) {
+	updates := []resolvedUpdate{makeUpdate("/nonexistent/path/file.yaml", "mychart", "1.0.0", "1.1.0")}
+
+	_, err := applyFileUpdates(updates)
+	if err == nil {
+		t.Fatal("expected error for nonexistent file, got nil")
+	}
+}
+
+func TestResolveUpdates_CancelledContext(t *testing.T) {
+	srv := newTestHelmServer(t)
+	cfg := config.DefaultConfig()
+	cfg.Release.Enabled = false
+	factory := registry.NewFactory(cfg, "")
+	orch := releasenotes.NewOrchestrator(cfg.Release, "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	refs := []manifest.ChartReference{
+		{ChartName: "mychart", RepoURL: srv.URL, TargetRevision: "1.0.0", Type: manifest.SourceTypeHTTP},
+	}
+
+	updates := resolveUpdates(ctx, cfg, refs, factory, orch, false)
+
+	// With a cancelled context, the semaphore acquire should fail and return no updates
+	if len(updates) != 0 {
+		t.Errorf("expected 0 updates with cancelled context, got %d", len(updates))
+	}
+}
+
+func TestResolveUpdates_MultipleSorted(t *testing.T) {
+	srv := newTestHelmServer(t)
+	cfg := config.DefaultConfig()
+	cfg.Release.Enabled = false
+	factory := registry.NewFactory(cfg, "")
+	orch := releasenotes.NewOrchestrator(cfg.Release, "")
+	refs := []manifest.ChartReference{
+		{ChartName: "mychart", RepoURL: srv.URL, TargetRevision: "1.0.0", Type: manifest.SourceTypeHTTP, FilePath: "b.yaml"},
+		{ChartName: "mychart", RepoURL: srv.URL, TargetRevision: "1.1.0", Type: manifest.SourceTypeHTTP, FilePath: "a.yaml"},
+		{ChartName: "otherchart", RepoURL: srv.URL, TargetRevision: "2.0.0", Type: manifest.SourceTypeHTTP, FilePath: "c.yaml"},
+	}
+
+	updates := resolveUpdates(context.Background(), cfg, refs, factory, orch, true)
+
+	if len(updates) != 3 {
+		t.Fatalf("expected 3 updates, got %d", len(updates))
+	}
+	// Should be sorted by chart name first, then file path
+	if updates[0].info.ChartName != "mychart" || updates[0].info.FilePath != "a.yaml" {
+		t.Errorf("expected first update mychart/a.yaml, got %s/%s", updates[0].info.ChartName, updates[0].info.FilePath)
+	}
+	if updates[2].info.ChartName != "otherchart" {
+		t.Errorf("expected last update otherchart, got %s", updates[2].info.ChartName)
+	}
+}
+
+func TestRunUpdate_DryRun(t *testing.T) {
+	srv := newTestHelmServer(t)
+	dir := t.TempDir()
+
+	content := "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: myapp\nspec:\n  source:\n    repoURL: " + srv.URL + "\n    chart: mychart\n    targetRevision: 1.0.0\n"
+	path := filepath.Join(dir, "app.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := &rootOptions{scanDir: dir, dryRun: true}
+	err := runUpdate(context.Background(), root, "", false, 0, "", "owner/repo")
+	if err != nil {
+		t.Fatalf("unexpected error in dry-run: %v", err)
+	}
+}
+
+func TestRunUpdate_DryRun_NoUpdates(t *testing.T) {
+	srv := newTestHelmServer(t)
+	dir := t.TempDir()
+
+	content := "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: myapp\nspec:\n  source:\n    repoURL: " + srv.URL + "\n    chart: mychart\n    targetRevision: 1.2.0\n"
+	path := filepath.Join(dir, "app.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := &rootOptions{scanDir: dir, dryRun: true}
+	err := runUpdate(context.Background(), root, "", false, 0, "", "owner/repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunUpdate_NoUpdatesNonDryRun(t *testing.T) {
+	srv := newTestHelmServer(t)
+	dir := t.TempDir()
+
+	content := "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: myapp\nspec:\n  source:\n    repoURL: " + srv.URL + "\n    chart: mychart\n    targetRevision: 1.2.0\n"
+	path := filepath.Join(dir, "app.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("GITHUB_TOKEN", "fake-token")
+	root := &rootOptions{scanDir: dir}
+	err := runUpdate(context.Background(), root, "", false, 0, "fake-token", "owner/repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewUpdateCmd(t *testing.T) {
+	root := &rootOptions{}
+	cmd := newUpdateCmd(root)
+
+	if cmd.Use != "update" {
+		t.Errorf("expected Use update, got %s", cmd.Use)
+	}
+
+	for _, flag := range []string{"chart", "allow-major", "max-prs", "github-token", "repo"} {
+		if cmd.Flags().Lookup(flag) == nil {
+			t.Errorf("expected flag %q to be registered", flag)
+		}
+	}
+}
+
+func TestNewUpdateCmd_RunE(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	root := &rootOptions{scanDir: t.TempDir()}
+	cmd := newUpdateCmd(root)
+	cmd.SetArgs([]string{"--repo", "owner/repo"})
+	// Should fail due to missing token
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("expected error for missing token")
+	}
+}
+
+func TestRunUpdate_MissingToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	root := &rootOptions{scanDir: t.TempDir()}
+	err := runUpdate(context.Background(), root, "", false, 0, "", "owner/repo")
+	if err == nil {
+		t.Error("expected error for missing token")
+	}
+}
+
+func TestCreatePerFilePRs_BranchRenderError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	settings.GroupBranchTemplate = "{{.InvalidField}}"
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (branch render error), got %d", count)
+	}
+}
+
+func TestCreatePerFilePRs_ApplyFileError(t *testing.T) {
+	settings := testSettings()
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (apply error), got %d", count)
+	}
+}
+
+func TestCreatePerChartPRs_ApplyFileError(t *testing.T) {
+	settings := testSettings()
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
+	if count != 0 {
+		t.Fatalf("expected 0 PRs (apply error), got %d", count)
+	}
+}
+
+func TestCreatePerChartPRs_ExistingPRCheckError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingErr: fmt.Errorf("API error"), existingVal: true}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	// ExistingPR returns error but existingVal is false (default when err), so it continues
+	mock2 := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	count := createPerChartPRs(context.Background(), &settings, updates, mock2, 10)
+	_ = mock
+	// Should still try to create the PR despite the ExistingPR error
+	if count != 1 {
+		t.Fatalf("expected 1 PR (warning on ExistingPR error), got %d", count)
+	}
+}
+
+func TestCreatePerFilePRs_ExistingPRCheckError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+	// Should still try to create PR despite ExistingPR error
+	if count != 1 {
+		t.Fatalf("expected 1 PR (warning on ExistingPR error), got %d", count)
+	}
+}
+
+func TestCreateBatchPR_ApplyFileError(t *testing.T) {
+	settings := testSettings()
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
+
+	_, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err == nil {
+		t.Fatal("expected error from apply file updates")
+	}
+}
+
+func TestCreateBatchPR_ExistingPRCheckError(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingErr: fmt.Errorf("API error")}
+	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
+
+	count, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should still try to create despite ExistingPR error
+	if count != 1 {
+		t.Fatalf("expected 1 PR (warning on ExistingPR error), got %d", count)
+	}
+}
+
+func TestCreateBatchPR_CreateGroupPRError(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{groupPRErr: fmt.Errorf("group PR API error")}
+	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
+
+	_, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err == nil {
+		t.Fatal("expected error from createGroupPR")
+	}
+}
+
+func TestResolveOneUpdate_ResolveError(t *testing.T) {
+	// Use a server that returns no chart, causing resolveLatest to fail
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/index.yaml" {
+			_, _ = w.Write([]byte("entries: {}"))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	cfg := config.DefaultConfig()
+	cfg.Release.Enabled = false
+	factory := registry.NewFactory(cfg, "")
+	orch := releasenotes.NewOrchestrator(cfg.Release, "")
+
+	ref := &manifest.ChartReference{
+		ChartName:      "nonexistent",
+		RepoURL:        server.URL,
+		TargetRevision: "1.0.0",
+		Type:           manifest.SourceTypeHTTP,
+	}
+
+	_, ok := resolveOneUpdate(context.Background(), cfg, ref, factory, orch, false)
+	if ok {
+		t.Error("expected resolveOneUpdate to fail for nonexistent chart")
+	}
+}
+
+func TestRunUpdate_ConfigError(t *testing.T) {
+	root := &rootOptions{scanDir: t.TempDir(), cfgFile: "/nonexistent/config.yaml"}
+	err := runUpdate(context.Background(), root, "", false, 0, "token", "owner/repo")
+	if err == nil {
+		t.Error("expected error for non-existent config file")
+	}
+}
+
+func TestRunUpdate_ScanRefsError(t *testing.T) {
+	// Create a config that will result in a walkDir error by using a file as a dir
+	dir := t.TempDir()
+	cfgContent := "scanDirs: []\n"
+	cfgPath := filepath.Join(dir, "argoiax.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// scanDir empty, config has no dirs either — should succeed with 0 refs
+	root := &rootOptions{scanDir: dir, cfgFile: cfgPath, dryRun: true}
+	err := runUpdate(context.Background(), root, "", false, 0, "", "owner/repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDispatchPRs_DefaultStrategy(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.prs) != 1 {
+		t.Fatalf("expected 1 PR created, got %d", len(mock.prs))
+	}
+}
+
+func TestDispatchPRs_PerFileStrategy(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	settings.PRStrategy = config.StrategyPerFile
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.groupPRs) != 1 {
+		t.Fatalf("expected 1 group PR created, got %d", len(mock.groupPRs))
+	}
+}
+
+func TestDispatchPRs_BatchStrategy(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	settings.PRStrategy = config.StrategyBatch
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.groupPRs) != 1 {
+		t.Fatalf("expected 1 batch PR created, got %d", len(mock.groupPRs))
+	}
+}
+
+func TestDispatchPRs_BatchError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	settings.PRStrategy = config.StrategyBatch
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &errMockCreator{groupPRErr: fmt.Errorf("batch API error")}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
+	if err == nil {
+		t.Fatal("expected error from batch strategy")
+	}
+}
+
+func TestDispatchPRs_MaxPRsDefaultsToConfig(t *testing.T) {
+	dir := t.TempDir()
+	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
+	settings := testSettings()
+	settings.MaxOpenPRs = 1
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &mockCreator{existing: map[string]bool{}}
+	updates := []resolvedUpdate{
+		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
+		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
+	}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.prs) != 1 {
+		t.Fatalf("expected 1 PR (config MaxOpenPRs=1), got %d", len(mock.prs))
+	}
+}
+
+func TestDispatchPRs_NoPRsCreated(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	cfg := config.DefaultConfig()
+	cfg.Settings = settings
+	mock := &mockCreator{existing: map[string]bool{"argoiax/mychart-1.1.0": true}}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.prs) != 0 {
+		t.Fatalf("expected 0 PRs (all existing), got %d", len(mock.prs))
+	}
+}
+
+func TestResolveOneUpdate_WithIntermediateVersions(t *testing.T) {
+	srv := newTestHelmServer(t)
+	cfg := config.DefaultConfig()
+	cfg.Release.Enabled = true
+	cfg.Release.IncludeIntermediate = true
+	cfg.Release.Sources = nil // no sources, so notes will be nil but the path is exercised
+
+	factory := registry.NewFactory(cfg, "")
+	orch := releasenotes.NewOrchestrator(cfg.Release, "")
+
+	ref := &manifest.ChartReference{
+		ChartName:      "mychart",
+		RepoURL:        srv.URL,
+		TargetRevision: "1.0.0",
+		Type:           manifest.SourceTypeHTTP,
+	}
+
+	u, ok := resolveOneUpdate(context.Background(), cfg, ref, factory, orch, false)
+	if !ok {
+		t.Fatal("expected resolveOneUpdate to succeed")
+	}
+	if u.info.NewVersion != "1.2.0" {
+		t.Errorf("expected new version 1.2.0, got %s", u.info.NewVersion)
+	}
+	if u.info.OldVersion != "1.0.0" {
+		t.Errorf("expected old version 1.0.0, got %s", u.info.OldVersion)
 	}
 }

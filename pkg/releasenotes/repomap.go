@@ -46,10 +46,6 @@ func fromGitHubPages(url string) GitHubRepo {
 	url = strings.TrimPrefix(url, "http://")
 
 	parts := strings.SplitN(url, ".github.io/", 2)
-	if len(parts) != 2 {
-		return GitHubRepo{}
-	}
-
 	org := parts[0]
 	repo := strings.Trim(parts[1], "/")
 

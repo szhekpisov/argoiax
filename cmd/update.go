@@ -128,7 +128,10 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	tc.Transport = &registry.RetryTransport{Base: tc.Transport, MaxRetries: 3}
 	ghClient := github.NewClient(tc)
 	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, &cfg.Settings)
+	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
+}
 
+func dispatchPRs(ctx context.Context, cfg *config.Config, updates []resolvedUpdate, prCreator pr.Creator, maxPRs int) error {
 	maxPRCount := maxPRs
 	if maxPRCount == 0 {
 		maxPRCount = cfg.Settings.MaxOpenPRs
