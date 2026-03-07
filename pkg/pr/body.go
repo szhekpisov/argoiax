@@ -2,6 +2,7 @@ package pr
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/vertrost/argoiax/pkg/releasenotes"
@@ -42,10 +43,7 @@ func RenderPRBody(info *UpdateInfo) string {
 
 	// Footer
 	writeFooter(&b, []string{
-		"- `@argoiax recheck` will re-run the version check for this chart",
-		"- `@argoiax ignore this major version` will close this PR and stop creating PRs for this major version",
-		"- `@argoiax ignore this minor version` will close this PR and stop creating PRs for this minor version",
-		"- `@argoiax ignore this chart` will close this PR and stop creating PRs for this chart",
+		"- Close this PR to stop argoiax from recreating it",
 	})
 
 	return b.String()
@@ -92,7 +90,7 @@ func RenderGroupPRBody(group UpdateGroup) string {
 	// Footer
 	b.WriteString("\n<br />\n\n")
 	writeFooter(&b, []string{
-		"- `@argoiax recheck` will re-run the version check for the charts in this PR",
+		"- Close this PR to stop argoiax from recreating it",
 	})
 
 	return b.String()
@@ -102,12 +100,12 @@ func RenderGroupPRBody(group UpdateGroup) string {
 func writeReleaseNotes(b *strings.Builder, chartName string, notes *releasenotes.Notes, summary string) {
 	fmt.Fprintf(b, "\n<details>\n<summary>%s</summary>\n", summary)
 	if notes.SourceURL != "" {
-		fmt.Fprintf(b, "<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", notes.SourceURL, chartName)
+		fmt.Fprintf(b, "<p><em>Sourced from <a href=\"%s\">%s's releases</a>.</em></p>\n", notes.SourceURL, html.EscapeString(chartName))
 	}
 	b.WriteString("<blockquote>\n")
 	for _, entry := range notes.Entries {
-		fmt.Fprintf(b, "<h2>%s</h2>\n", entry.Version)
-		b.WriteString(entry.Body)
+		fmt.Fprintf(b, "<h2>%s</h2>\n", html.EscapeString(entry.Version))
+		b.WriteString(html.EscapeString(entry.Body))
 		b.WriteString("\n")
 	}
 	b.WriteString("</blockquote>\n</details>\n")
@@ -115,7 +113,7 @@ func writeReleaseNotes(b *strings.Builder, chartName string, notes *releasenotes
 
 // writeFooter writes the standard PR footer with argoiax commands.
 func writeFooter(b *strings.Builder, commands []string) {
-	b.WriteString("argoiax will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a recheck by commenting `@argoiax recheck`.\n")
+	b.WriteString("argoiax will resolve any conflicts with this PR as long as you don't alter it yourself.\n")
 	b.WriteString("\n---\n\n")
 	b.WriteString("<details>\n<summary>argoiax commands and options</summary>\n<br />\n\n")
 	b.WriteString("You can trigger argoiax actions by commenting on this PR:\n")

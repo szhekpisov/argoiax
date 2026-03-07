@@ -91,6 +91,10 @@ func (o *Orchestrator) FetchNotes(ctx context.Context, chartName, repoURL string
 		return nil
 	}
 
+	const releaseNotesTimeout = 30 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, releaseNotesTimeout)
+	defer cancel()
+
 	repo := MapChartToRepo(chartName, repoURL, chartCfg)
 	if repo.Owner == "" || repo.Repo == "" {
 		slog.Debug("could not map chart to GitHub repo", "chart", chartName, "repoURL", repoURL)

@@ -30,7 +30,7 @@ type Factory struct {
 func NewFactory(cfg *config.Config, githubToken string) *Factory {
 	return &Factory{
 		helmHTTP: NewHelmHTTPRegistry(cfg),
-		oci:      NewOCIRegistry(cfg),
+		oci:      NewOCIRegistry(),
 		git:      NewGitRegistry(githubToken),
 	}
 }

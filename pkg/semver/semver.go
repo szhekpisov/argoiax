@@ -53,6 +53,20 @@ func parsePair(current, latest string) (cur, lat *sv.Version, err error) {
 	return cur, lat, nil
 }
 
+// Equal returns true if two version strings are semantically equal (e.g. "1.0.0" == "v1.0.0").
+// Falls back to string comparison if either version cannot be parsed.
+func Equal(a, b string) bool {
+	va, err := sv.NewVersion(a)
+	if err != nil {
+		return a == b
+	}
+	vb, err := sv.NewVersion(b)
+	if err != nil {
+		return a == b
+	}
+	return va.Equal(vb)
+}
+
 // IsMajorBump returns true if the latest version has a higher major version than current.
 func IsMajorBump(current, latest string) bool {
 	cur, lat, err := parsePair(current, latest)

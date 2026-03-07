@@ -8,18 +8,15 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/vertrost/argoiax/pkg/config"
 	"github.com/vertrost/argoiax/pkg/manifest"
 )
 
 // OCIRegistry implements Registry for OCI-based Helm registries.
-type OCIRegistry struct {
-	cfg *config.Config
-}
+type OCIRegistry struct{}
 
 // NewOCIRegistry creates a new OCIRegistry.
-func NewOCIRegistry(cfg *config.Config) *OCIRegistry {
-	return &OCIRegistry{cfg: cfg}
+func NewOCIRegistry() *OCIRegistry {
+	return &OCIRegistry{}
 }
 
 // ListVersions returns all available tags for a chart from an OCI registry.

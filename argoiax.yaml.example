@@ -24,8 +24,6 @@ auth:
     - url: "https://private.example.com"
       username: "${HELM_USER}"
       password: "${HELM_PASS}"
-  ociRegistries:
-    - registry: "123456789.dkr.ecr.us-east-1.amazonaws.com"
 
 releaseNotes:
   enabled: true

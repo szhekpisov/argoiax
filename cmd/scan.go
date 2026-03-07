@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -21,6 +22,7 @@ func newScanCmd(root *rootOptions) *cobra.Command {
 		chartFilter  string
 		outputFormat string
 		showUpToDate bool
+		failOnDrift  bool
 	)
 
 	cmd := &cobra.Command{
@@ -28,18 +30,19 @@ func newScanCmd(root *rootOptions) *cobra.Command {
 		Short: "Scan for outdated Helm chart versions in ArgoCD manifests",
 		Long:  `Scan scans your GitOps repository for ArgoCD Application manifests and reports which Helm charts have newer versions available.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runScan(cmd.Context(), root.cfgFile, root.scanDir, chartFilter, outputFormat, showUpToDate)
+			return runScan(cmd.Context(), root.cfgFile, root.scanDir, chartFilter, outputFormat, showUpToDate, failOnDrift)
 		},
 	}
 
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format (table, json, markdown)")
 	cmd.Flags().StringVar(&chartFilter, "chart", "", "only check a specific chart name")
 	cmd.Flags().BoolVar(&showUpToDate, "show-uptodate", false, "include up-to-date charts in output")
+	cmd.Flags().BoolVar(&failOnDrift, "fail-on-drift", false, "exit with non-zero code when outdated charts are found")
 
 	return cmd
 }
 
-func runScan(ctx context.Context, cfgFile, scanDir, chartFilter, outputFormat string, showUpToDate bool) error {
+func runScan(ctx context.Context, cfgFile, scanDir, chartFilter, outputFormat string, showUpToDate, failOnDrift bool) error {
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return err
@@ -66,6 +69,14 @@ func runScan(ctx context.Context, cfgFile, scanDir, chartFilter, outputFormat st
 	}
 
 	fmt.Fprintln(os.Stderr, "\n"+output.Summary(results))
+
+	if failOnDrift {
+		for _, r := range results {
+			if r.Status == output.StatusUpdateAvailable || r.Status == output.StatusBreaking {
+				return errors.New("drift detected: outdated charts found")
+			}
+		}
+	}
 
 	return nil
 }
@@ -109,7 +120,7 @@ func checkVersions(ctx context.Context, cfg *config.Config, refs []manifest.Char
 			results[idx].LatestVersion = latest
 
 			switch {
-			case latest == ref.TargetRevision:
+			case semver.Equal(latest, ref.TargetRevision):
 				results[idx].Status = output.StatusUpToDate
 			case semver.IsMajorBump(ref.TargetRevision, latest):
 				results[idx].Status = output.StatusBreaking

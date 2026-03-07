@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -184,6 +185,14 @@ func resolveUpdates(ctx context.Context, cfg *config.Config, refs []manifest.Cha
 	}
 
 	wg.Wait()
+
+	slices.SortFunc(updates, func(a, b resolvedUpdate) int {
+		if c := strings.Compare(a.info.ChartName, b.info.ChartName); c != 0 {
+			return c
+		}
+		return strings.Compare(a.info.FilePath, b.info.FilePath)
+	})
+
 	return updates
 }
 
@@ -194,7 +203,7 @@ func resolveOneUpdate(ctx context.Context, cfg *config.Config, ref *manifest.Cha
 		return resolvedUpdate{}, false
 	}
 
-	if latest == ref.TargetRevision {
+	if semver.Equal(latest, ref.TargetRevision) {
 		return resolvedUpdate{}, false
 	}
 

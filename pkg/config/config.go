@@ -51,13 +51,11 @@ type Settings struct {
 	GroupBranchTemplate string   `yaml:"groupBranchTemplate"`
 	GroupTitleTemplate  string   `yaml:"groupTitleTemplate"`
 	MaxOpenPRs          int      `yaml:"maxOpenPRs"`
-	AutoMergePatch      bool     `yaml:"autoMergePatch"`
 }
 
 // Auth holds authentication configuration for registries.
 type Auth struct {
-	HelmRepos     []HelmRepoAuth `yaml:"helmRepos"`
-	OCIRegistries []OCIAuth      `yaml:"ociRegistries"`
+	HelmRepos []HelmRepoAuth `yaml:"helmRepos"`
 }
 
 // HelmRepoAuth holds credentials for a Helm HTTP repository.
@@ -65,12 +63,6 @@ type HelmRepoAuth struct {
 	URL      string `yaml:"url"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
-}
-
-// OCIAuth holds authentication configuration for an OCI registry.
-type OCIAuth struct {
-	Registry string `yaml:"registry"`
-	Provider string `yaml:"provider"`
 }
 
 // ReleaseNotesConfig controls release notes fetching behavior.
@@ -95,7 +87,6 @@ func DefaultConfig() *Config {
 			GroupBranchTemplate: "argoiax/update-{{.FileBaseName}}",
 			GroupTitleTemplate:  "chore(deps): update {{.Count}} chart(s) in {{.FileBaseName}}",
 			MaxOpenPRs:          10,
-			AutoMergePatch:      false,
 		},
 		Release: ReleaseNotesConfig{
 			Enabled:             true,
