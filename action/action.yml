@@ -65,11 +65,11 @@ runs:
         esac
 
         if [ "$INPUT_VERSION" = "latest" ]; then
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/vertrost/argoiax/releases/latest \
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/szhekpisov/argoiax/releases/latest \
             | grep "browser_download_url.*${OS}_${ARCH}.tar.gz" \
             | cut -d '"' -f 4)
         else
-          DOWNLOAD_URL="https://github.com/vertrost/argoiax/releases/download/v${INPUT_VERSION}/argoiax_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
+          DOWNLOAD_URL="https://github.com/szhekpisov/argoiax/releases/download/v${INPUT_VERSION}/argoiax_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
         fi
         curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin argoiax
         chmod +x /usr/local/bin/argoiax

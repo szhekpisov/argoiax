@@ -3,8 +3,8 @@
 Automated Helm chart dependency updates for ArgoCD — named after the mythological helmsman of the Argo.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Tests](https://github.com/vertrost/argoiax/actions/workflows/test.yml/badge.svg)](https://github.com/vertrost/argoiax/actions/workflows/test.yml)
-[![Release](https://img.shields.io/github/v/release/vertrost/argoiax)](https://github.com/vertrost/argoiax/releases)
+[![Tests](https://github.com/szhekpisov/argoiax/actions/workflows/test.yml/badge.svg)](https://github.com/szhekpisov/argoiax/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/szhekpisov/argoiax)](https://github.com/szhekpisov/argoiax/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Problem
@@ -34,19 +34,19 @@ ArgoCD Application manifests pin Helm chart versions in YAML files. When upstrea
 ### Install from source
 
 ```bash
-go install github.com/vertrost/argoiax@latest
+go install github.com/szhekpisov/argoiax@latest
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/vertrost/argoiax.git
+git clone https://github.com/szhekpisov/argoiax.git
 cd argoiax
 make build        # binary at ./bin/argoiax
 make install      # installs to $GOPATH/bin
 ```
 
-You can also download a pre-built binary from [Releases](https://github.com/vertrost/argoiax/releases).
+You can also download a pre-built binary from [Releases](https://github.com/szhekpisov/argoiax/releases).
 
 ### Scan for outdated charts
 
@@ -128,7 +128,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: vertrost/argoiax@v1
+      - uses: szhekpisov/argoiax@v1
         with:
           command: update
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -147,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: vertrost/argoiax@v1
+      - uses: szhekpisov/argoiax@v1
         with:
           command: scan
           dir: apps/
@@ -171,7 +171,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: vertrost/argoiax@v1
+      - uses: szhekpisov/argoiax@v1
         id: argoiax
         with:
           command: update
@@ -308,7 +308,7 @@ releaseNotes:
 ## Docker
 
 ```bash
-docker run --rm -v $(pwd):/data ghcr.io/vertrost/argoiax scan --dir /data
+docker run --rm -v $(pwd):/data ghcr.io/szhekpisov/argoiax scan --dir /data
 ```
 
 ## Supported ArgoCD patterns

@@ -43,14 +43,14 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-amd64"
     goarch: amd64
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
   - image_templates:
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-arm64"
     goarch: arm64
     dockerfile: Dockerfile
     use: buildx
@@ -58,11 +58,11 @@ dockers:
       - "--platform=linux/arm64"
 
 docker_manifests:
-  - name_template: "ghcr.io/vertrost/argoiax:{{ .Version }}"
+  - name_template: "ghcr.io/szhekpisov/argoiax:{{ .Version }}"
     image_templates:
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/vertrost/argoiax:latest"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-amd64"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/szhekpisov/argoiax:latest"
     image_templates:
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-amd64"
-      - "ghcr.io/vertrost/argoiax:{{ .Version }}-arm64"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-amd64"
+      - "ghcr.io/szhekpisov/argoiax:{{ .Version }}-arm64"
