@@ -20,8 +20,8 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 	// GetRef — return a valid ref
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
@@ -30,8 +30,8 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 	// CreateRef — accept branch creation
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/test-branch"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -40,7 +40,7 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 
 	// GetContents — return file with SHA
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
-		content := &github.RepositoryContent{SHA: github.Ptr("file-sha-123")}
+		content := &github.RepositoryContent{SHA: new("file-sha-123")}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(content)
 	})
@@ -48,7 +48,7 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 	// UpdateFile — accept file update
 	mux.HandleFunc("PUT /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
 		resp := &github.RepositoryContentResponse{
-			Content: &github.RepositoryContent{SHA: github.Ptr("new-sha-456")},
+			Content: &github.RepositoryContent{SHA: new("new-sha-456")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -57,8 +57,8 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 	// CreatePullRequest — return PR
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, _ *http.Request) {
 		pr := &github.PullRequest{
-			Number:  github.Ptr(42),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			Number:  new(42),
+			HTMLURL: new("https://github.com/owner/repo/pull/42"),
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -68,7 +68,7 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 	// AddLabelsToIssue — accept labels
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/issues/{issue}/labels", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]*github.Label{{Name: github.Ptr("test")}})
+		_ = json.NewEncoder(w).Encode([]*github.Label{{Name: new("test")}})
 	})
 
 	// ListPullRequests
@@ -76,7 +76,7 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 		head := r.URL.Query().Get("head")
 		w.Header().Set("Content-Type", "application/json")
 		if strings.Contains(head, "existing-branch") {
-			_ = json.NewEncoder(w).Encode([]*github.PullRequest{{Number: github.Ptr(1)}})
+			_ = json.NewEncoder(w).Encode([]*github.PullRequest{{Number: new(1)}})
 		} else {
 			_ = json.NewEncoder(w).Encode([]*github.PullRequest{})
 		}
@@ -246,8 +246,8 @@ func TestCreatePR_CommitFileError(t *testing.T) {
 	// GetRef — return a valid ref
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
@@ -255,8 +255,8 @@ func TestCreatePR_CommitFileError(t *testing.T) {
 	// CreateRef — accept branch creation
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/test-branch"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -324,8 +324,8 @@ func TestCreateGroupPR_CommitFileError(t *testing.T) {
 	// GetRef — return a valid ref
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
@@ -333,8 +333,8 @@ func TestCreateGroupPR_CommitFileError(t *testing.T) {
 	// CreateRef — accept branch creation
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/test-branch"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -342,7 +342,7 @@ func TestCreateGroupPR_CommitFileError(t *testing.T) {
 	})
 	// GetContents — return file with SHA (for commitFile to proceed)
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
-		content := &github.RepositoryContent{SHA: github.Ptr("file-sha-123")}
+		content := &github.RepositoryContent{SHA: new("file-sha-123")}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(content)
 	})
@@ -418,8 +418,8 @@ func TestCreatePR_SubmitPRError(t *testing.T) {
 	// GetRef — return a valid ref
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
@@ -427,8 +427,8 @@ func TestCreatePR_SubmitPRError(t *testing.T) {
 	// CreateRef — accept branch creation
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/test-branch"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -436,14 +436,14 @@ func TestCreatePR_SubmitPRError(t *testing.T) {
 	})
 	// GetContents — return file with SHA
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
-		content := &github.RepositoryContent{SHA: github.Ptr("file-sha-123")}
+		content := &github.RepositoryContent{SHA: new("file-sha-123")}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(content)
 	})
 	// UpdateFile — accept file update
 	mux.HandleFunc("PUT /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
 		resp := &github.RepositoryContentResponse{
-			Content: &github.RepositoryContent{SHA: github.Ptr("new-sha-456")},
+			Content: &github.RepositoryContent{SHA: new("new-sha-456")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -504,37 +504,37 @@ func TestCreatePR_LabelFailure(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
 	})
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/git/refs", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/test-branch"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/test-branch"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)
 	})
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
-		content := &github.RepositoryContent{SHA: github.Ptr("file-sha-123")}
+		content := &github.RepositoryContent{SHA: new("file-sha-123")}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(content)
 	})
 	mux.HandleFunc("PUT /api/v3/repos/{owner}/{repo}/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
 		resp := &github.RepositoryContentResponse{
-			Content: &github.RepositoryContent{SHA: github.Ptr("new-sha-456")},
+			Content: &github.RepositoryContent{SHA: new("new-sha-456")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, _ *http.Request) {
 		pr := &github.PullRequest{
-			Number:  github.Ptr(42),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			Number:  new(42),
+			HTMLURL: new("https://github.com/owner/repo/pull/42"),
 		}
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -716,8 +716,8 @@ func TestCreateBranch_CreateRefFailure(t *testing.T) {
 	// GetRef succeeds
 	mux.HandleFunc("GET /api/v3/repos/{owner}/{repo}/git/ref/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		ref := &github.Reference{
-			Ref:    github.Ptr("refs/heads/main"),
-			Object: &github.GitObject{SHA: github.Ptr("abc123")},
+			Ref:    new("refs/heads/main"),
+			Object: &github.GitObject{SHA: new("abc123")},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ref)

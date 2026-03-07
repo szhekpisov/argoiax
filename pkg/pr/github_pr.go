@@ -101,7 +101,7 @@ func (g *GitHubCreator) createBranch(ctx context.Context, branch, baseBranch str
 	}
 
 	newRef := &github.Reference{
-		Ref:    github.Ptr("refs/heads/" + branch),
+		Ref:    new("refs/heads/" + branch),
 		Object: baseRef.Object,
 	}
 	_, _, err = g.client.Git.CreateRef(ctx, g.owner, g.repo, newRef)
@@ -124,8 +124,8 @@ func (g *GitHubCreator) commitFile(ctx context.Context, branch, filePath string,
 		SHA:     existingFile.SHA,
 		Branch:  &branch,
 		Author: &github.CommitAuthor{
-			Name:  github.Ptr("argoiax"),
-			Email: github.Ptr("argoiax[bot]@users.noreply.github.com"),
+			Name:  new("argoiax"),
+			Email: new("argoiax[bot]@users.noreply.github.com"),
 			Date:  &github.Timestamp{Time: time.Now()},
 		},
 	})
