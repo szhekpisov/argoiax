@@ -102,3 +102,37 @@ jobs:
     with:
       base64-subjects: "${{ needs.release.outputs.hashes }}"
       upload-assets: true
+
+  update-changelog:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@c93ef52f3d0ddcdcc9bd5447d98d458a11cd4f72 # v4
+        with:
+          config: cliff.toml
+          args: --output CHANGELOG.md
+
+      - name: Commit and push changelog
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No changelog changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: update CHANGELOG.md for ${TAG}"
+          git push
