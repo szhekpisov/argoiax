@@ -86,3 +86,87 @@ func TestRenderTemplate(t *testing.T) {
 		t.Errorf("unexpected result: %s", result)
 	}
 }
+
+func TestRenderTemplate_InvalidTemplate(t *testing.T) {
+	_, err := RenderTemplate("{{.Invalid", nil)
+	if err == nil {
+		t.Error("expected error for invalid template")
+	}
+}
+
+func TestNewGroupTemplateData_SingleFile(t *testing.T) {
+	group := UpdateGroup{
+		Updates: []UpdateInfo{
+			{ChartName: "cert-manager", OldVersion: "1.0.0", NewVersion: "1.1.0", FilePath: "apps/infra.yaml"},
+			{ChartName: "nginx", OldVersion: "4.0.0", NewVersion: "4.1.0", FilePath: "apps/infra.yaml"},
+		},
+		Files: []FileUpdate{
+			{FilePath: "apps/infra.yaml"},
+		},
+	}
+
+	data := NewGroupTemplateData(group)
+
+	if data.Count != 2 {
+		t.Errorf("Count = %d, want 2", data.Count)
+	}
+	if data.FileCount != 1 {
+		t.Errorf("FileCount = %d, want 1", data.FileCount)
+	}
+	if data.FilePath != "apps/infra.yaml" {
+		t.Errorf("FilePath = %q, want %q", data.FilePath, "apps/infra.yaml")
+	}
+	if data.FileBaseName != "infra" {
+		t.Errorf("FileBaseName = %q, want %q", data.FileBaseName, "infra")
+	}
+	if data.Summary != "cert-manager, nginx" {
+		t.Errorf("Summary = %q, want %q", data.Summary, "cert-manager, nginx")
+	}
+	if len(data.ChartNames) != 2 {
+		t.Errorf("ChartNames len = %d, want 2", len(data.ChartNames))
+	}
+}
+
+func TestNewGroupTemplateData_MultipleFiles(t *testing.T) {
+	group := UpdateGroup{
+		Updates: []UpdateInfo{
+			{ChartName: "chart-a"},
+			{ChartName: "chart-b"},
+		},
+		Files: []FileUpdate{
+			{FilePath: "a.yaml"},
+			{FilePath: "b.yaml"},
+		},
+	}
+
+	data := NewGroupTemplateData(group)
+
+	if data.FileBaseName != "batch" {
+		t.Errorf("FileBaseName = %q, want %q", data.FileBaseName, "batch")
+	}
+	if data.FilePath != "" {
+		t.Errorf("FilePath = %q, want empty for multi-file", data.FilePath)
+	}
+}
+
+func TestNewGroupTemplateData_DeduplicatesChartNames(t *testing.T) {
+	group := UpdateGroup{
+		Updates: []UpdateInfo{
+			{ChartName: "same-chart", FilePath: "a.yaml"},
+			{ChartName: "same-chart", FilePath: "b.yaml"},
+		},
+		Files: []FileUpdate{
+			{FilePath: "a.yaml"},
+			{FilePath: "b.yaml"},
+		},
+	}
+
+	data := NewGroupTemplateData(group)
+
+	if len(data.ChartNames) != 1 {
+		t.Errorf("expected 1 unique chart name, got %d", len(data.ChartNames))
+	}
+	if data.Summary != "same-chart" {
+		t.Errorf("Summary = %q, want %q", data.Summary, "same-chart")
+	}
+}
