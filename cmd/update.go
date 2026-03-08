@@ -145,10 +145,21 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
 }
 
+func branchExists(ctx context.Context, ghClient *github.Client, owner, repo, branch string) bool {
+	_, _, err := ghClient.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
+	return err == nil
+}
+
 func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo string, cfg *config.Config) error {
 	if cfg.Settings.BaseBranch != "" {
-		return nil
+		if branchExists(ctx, ghClient, owner, repo, cfg.Settings.BaseBranch) {
+			return nil
+		}
+		slog.Warn("configured baseBranch not found, falling back to auto-detection",
+			"branch", cfg.Settings.BaseBranch)
+		cfg.Settings.BaseBranch = ""
 	}
+
 	ghRepo, _, err := ghClient.Repositories.Get(ctx, owner, repo)
 	if err != nil {
 		return fmt.Errorf("getting repository default branch: %w", err)
@@ -157,6 +168,11 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 	if branch == "" {
 		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
 	}
+
+	if !branchExists(ctx, ghClient, owner, repo, branch) {
+		return fmt.Errorf("detected default branch %q is not accessible; ensure the token has contents:read permission", branch)
+	}
+
 	cfg.Settings.BaseBranch = branch
 	slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
 	return nil
