@@ -124,7 +124,9 @@ func ReplyError(ctx context.Context, ec *EventContext, cmdName string, cmdErr er
 		slog.Warn("failed to add error reaction", "error", err)
 	}
 
-	body := fmt.Sprintf("The `%s` command failed: %s", cmdName, cmdErr)
+	slog.Error("command failed", "command", cmdName, "error", cmdErr)
+
+	body := fmt.Sprintf("The `%s` command failed. Check the workflow logs for details.", cmdName)
 	_, _, err := ec.Client.Issues.CreateComment(ctx, ec.Owner, ec.Repo, ec.PRNumber, &github.IssueComment{
 		Body: &body,
 	})

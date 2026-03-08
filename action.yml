@@ -121,7 +121,7 @@ runs:
           ARGS+=("--repo" "$INPUT_REPO")
         fi
 
-        if [ -n "$INPUT_CHART" ]; then
+        if [ -n "$INPUT_CHART" ] && [ "$INPUT_COMMAND" != "comment" ]; then
           ARGS+=("--chart" "$INPUT_CHART")
         fi
 

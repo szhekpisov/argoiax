@@ -288,7 +288,10 @@ func TestReplyError(t *testing.T) {
 	if !commentPosted {
 		t.Error("expected error comment to be posted")
 	}
-	if !strings.Contains(postedBody, "rebase") || !strings.Contains(postedBody, "merge conflict") {
+	if !strings.Contains(postedBody, "rebase") || !strings.Contains(postedBody, "workflow logs") {
 		t.Errorf("unexpected comment body: %s", postedBody)
+	}
+	if strings.Contains(postedBody, "merge conflict") {
+		t.Errorf("comment body should not contain raw error: %s", postedBody)
 	}
 }
