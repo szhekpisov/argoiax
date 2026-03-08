@@ -51,8 +51,10 @@ runs:
     - name: Detect install method
       id: detect
       shell: bash
+      env:
+        ACTION_REF: ${{ github.action_ref }}
       run: |
-        if [[ "${{ github.action_ref }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           echo "method=download" >> "$GITHUB_OUTPUT"
         else
           echo "method=build" >> "$GITHUB_OUTPUT"
@@ -61,30 +63,33 @@ runs:
     - name: Download argoiax binary
       if: steps.detect.outputs.method == 'download'
       shell: bash
+      env:
+        ACTION_REF: ${{ github.action_ref }}
       run: |
-        VERSION="${{ github.action_ref }}"
-        VERSION="${VERSION#v}"
+        VERSION="${ACTION_REF#v}"
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64) ARCH="amd64" ;;
           aarch64|arm64) ARCH="arm64" ;;
         esac
-        curl -sfL "https://github.com/szhekpisov/argoiax/releases/download/${{ github.action_ref }}/argoiax_${VERSION}_${OS}_${ARCH}.tar.gz" \
+        curl -sfL "https://github.com/szhekpisov/argoiax/releases/download/${ACTION_REF}/argoiax_${VERSION}_${OS}_${ARCH}.tar.gz" \
           | tar xz -C /usr/local/bin argoiax
         chmod +x /usr/local/bin/argoiax
 
     - name: Setup Go
       if: steps.detect.outputs.method == 'build'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version-file: ${{ github.action_path }}/go.mod
 
     - name: Build argoiax from source
       if: steps.detect.outputs.method == 'build'
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        cd "${{ github.action_path }}"
+        cd "$ACTION_PATH"
         go build -o /usr/local/bin/argoiax .
 
     - name: Run argoiax
