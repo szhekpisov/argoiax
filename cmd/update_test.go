@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1017,15 +1018,7 @@ func newMockGitHubAPIWithBranches(t *testing.T, defaultBranch string, existingBr
 	t.Helper()
 
 	branchAllowed := func(branch string) bool {
-		if existingBranches == nil {
-			return true
-		}
-		for _, b := range existingBranches {
-			if b == branch {
-				return true
-			}
-		}
-		return false
+		return existingBranches == nil || slices.Contains(existingBranches, branch)
 	}
 
 	mux := http.NewServeMux()
@@ -1295,5 +1288,34 @@ func TestResolveBaseBranch_AutoDetectedBranchNotAccessible(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "contents:read") {
 		t.Errorf("expected error to mention contents:read permission, got: %v", err)
+	}
+}
+
+func TestResolveBaseBranch_ConfiguredBranch_TransientError(t *testing.T) {
+	// GetRef returns 500 for the configured branch — should propagate as error, not fall back.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/") {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = fmt.Fprint(w, `{"message":"Internal Server Error"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, _ := url.Parse(server.URL + "/")
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+	cfg.Settings.BaseBranch = "main"
+
+	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error for transient API failure")
+	}
+	if !strings.Contains(err.Error(), "checking configured baseBranch") {
+		t.Errorf("expected error to mention checking configured baseBranch, got: %v", err)
 	}
 }

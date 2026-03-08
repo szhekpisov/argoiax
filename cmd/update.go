@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -145,14 +146,25 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
 }
 
-func branchExists(ctx context.Context, ghClient *github.Client, owner, repo, branch string) bool {
+func branchExists(ctx context.Context, ghClient *github.Client, owner, repo, branch string) (bool, error) {
 	_, _, err := ghClient.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
-	return err == nil
+	if err == nil {
+		return true, nil
+	}
+	var ghErr *github.ErrorResponse
+	if errors.As(err, &ghErr) && ghErr.Response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return false, err
 }
 
 func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo string, cfg *config.Config) error {
 	if cfg.Settings.BaseBranch != "" {
-		if branchExists(ctx, ghClient, owner, repo, cfg.Settings.BaseBranch) {
+		exists, err := branchExists(ctx, ghClient, owner, repo, cfg.Settings.BaseBranch)
+		if err != nil {
+			return fmt.Errorf("checking configured baseBranch %q: %w", cfg.Settings.BaseBranch, err)
+		}
+		if exists {
 			return nil
 		}
 		slog.Warn("configured baseBranch not found, falling back to auto-detection",
@@ -169,7 +181,11 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
 	}
 
-	if !branchExists(ctx, ghClient, owner, repo, branch) {
+	exists, err := branchExists(ctx, ghClient, owner, repo, branch)
+	if err != nil {
+		return fmt.Errorf("checking default branch %q: %w", branch, err)
+	}
+	if !exists {
 		return fmt.Errorf("detected default branch %q is not accessible; ensure the token has contents:read permission", branch)
 	}
 
