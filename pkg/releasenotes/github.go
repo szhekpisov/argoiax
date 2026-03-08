@@ -55,6 +55,7 @@ func (f *GitHubFetcher) fetchRelease(ctx context.Context, repo GitHubRepo, versi
 		version,
 		"v" + version,
 		fmt.Sprintf("%s-%s", repo.ChartName, version),
+		fmt.Sprintf("%s-chart-%s", repo.ChartName, version),
 		fmt.Sprintf("%s-%s", repo.Repo, version),
 	}
 
