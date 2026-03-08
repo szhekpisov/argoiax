@@ -6,7 +6,7 @@ branding:
 
 inputs:
   command:
-    description: 'Command to run (scan or update)'
+    description: 'Command to run (scan, update, or comment)'
     required: false
     default: 'update'
   config:
@@ -106,24 +106,26 @@ runs:
         INPUT_CHART: ${{ inputs.chart }}
         INPUT_REPO: ${{ github.repository }}
       run: |
-        ARGS="$INPUT_COMMAND"
-        ARGS="$ARGS --config $INPUT_CONFIG"
-        ARGS="$ARGS --dir $INPUT_DIR"
-        ARGS="$ARGS --log-level $INPUT_LOG_LEVEL"
+        ARGS=("$INPUT_COMMAND")
+        ARGS+=("--config" "$INPUT_CONFIG")
+        ARGS+=("--dir" "$INPUT_DIR")
+        ARGS+=("--log-level" "$INPUT_LOG_LEVEL")
 
         if [ "$INPUT_COMMAND" = "update" ]; then
-          ARGS="$ARGS --repo $INPUT_REPO"
-          ARGS="$ARGS --max-prs $INPUT_MAX_PRS"
+          ARGS+=("--repo" "$INPUT_REPO")
+          ARGS+=("--max-prs" "$INPUT_MAX_PRS")
           if [ "$INPUT_ALLOW_MAJOR" = "true" ]; then
-            ARGS="$ARGS --allow-major"
+            ARGS+=("--allow-major")
           fi
+        elif [ "$INPUT_COMMAND" = "comment" ]; then
+          ARGS+=("--repo" "$INPUT_REPO")
         fi
 
-        if [ -n "$INPUT_CHART" ]; then
-          ARGS="$ARGS --chart $INPUT_CHART"
+        if [ -n "$INPUT_CHART" ] && [ "$INPUT_COMMAND" != "comment" ]; then
+          ARGS+=("--chart" "$INPUT_CHART")
         fi
 
-        OUTPUT=$(argoiax $ARGS 2>&1) || true
+        OUTPUT=$(argoiax "${ARGS[@]}" 2>&1) || true
         echo "$OUTPUT"
 
         UPDATES=$(echo "$OUTPUT" | grep -oP '\d+(?= update\(s\) available)' || echo "0")

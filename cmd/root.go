@@ -41,6 +41,7 @@ fetches release notes with breaking change detection, and opens PRs for updates.
 
 	cmd.AddCommand(newScanCmd(&o))
 	cmd.AddCommand(newUpdateCmd(&o))
+	cmd.AddCommand(newCommentCmd(&o))
 	cmd.AddCommand(newVersionCmd())
 
 	return cmd

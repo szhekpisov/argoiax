@@ -18,13 +18,16 @@ func TestRenderPRBody_Basic(t *testing.T) {
 
 	body := RenderPRBody(&info)
 
+	if !strings.Contains(body, "<!-- argoiax:chart=cert-manager -->") {
+		t.Error("expected chart marker comment")
+	}
 	if !strings.Contains(body, "Bumps [cert-manager](https://charts.jetstack.io) from 1.13.2 to 1.14.1.") {
 		t.Error("expected Dependabot-style opening line")
 	}
 	if strings.Contains(body, "WARNING") {
 		t.Error("did not expect breaking change warning")
 	}
-	if !strings.Contains(body, "Close this PR") {
+	if !strings.Contains(body, "@argoiax rebase") {
 		t.Error("expected argoiax commands in footer")
 	}
 	if !strings.Contains(body, "---") {
@@ -212,7 +215,7 @@ func TestRenderGroupPRBody_MultipleCharts(t *testing.T) {
 	if strings.Contains(body, "Release notes for nginx") {
 		t.Error("did not expect release notes section for nginx (no notes)")
 	}
-	if !strings.Contains(body, "Close this PR") {
+	if !strings.Contains(body, "@argoiax rebase") {
 		t.Error("expected argoiax commands in footer")
 	}
 }

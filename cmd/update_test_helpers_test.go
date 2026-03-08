@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v68/github"
+	"github.com/szhekpisov/argoiax/internal/testutil"
 	"github.com/szhekpisov/argoiax/pkg/config"
 	"github.com/szhekpisov/argoiax/pkg/manifest"
 	"github.com/szhekpisov/argoiax/pkg/pr"
@@ -207,4 +208,17 @@ func overrideGitHubClient(t *testing.T, client *github.Client) {
 	newGitHubClient = func(_ context.Context, _ string) *github.Client {
 		return client
 	}
+}
+
+func overrideScanManifests(t *testing.T, fn func(*config.Config, string, string) ([]manifest.ChartReference, error)) {
+	t.Helper()
+	orig := scanManifests
+	t.Cleanup(func() { scanManifests = orig })
+	scanManifests = fn
+}
+
+// newMockGitHubAPIWithHandlers delegates to testutil.NewMockGitHubClient.
+func newMockGitHubAPIWithHandlers(t *testing.T, handlers map[string]http.HandlerFunc) *github.Client {
+	t.Helper()
+	return testutil.NewMockGitHubClient(t, handlers)
 }
