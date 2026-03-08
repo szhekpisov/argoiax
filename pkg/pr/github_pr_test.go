@@ -251,6 +251,27 @@ func TestUpdatePRBody(t *testing.T) {
 	}
 }
 
+func TestUpdatePRBody_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := github.NewClient(nil)
+	client, _ = client.WithEnterpriseURLs(srv.URL, srv.URL)
+
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
+	err := creator.UpdatePRBody(context.Background(), 42, "body")
+	if err == nil {
+		t.Fatal("expected error on 422 response")
+	}
+	if !strings.Contains(err.Error(), "updating PR #42") {
+		t.Errorf("expected error to mention PR number, got: %v", err)
+	}
+}
+
 func TestCreatePR_CommitFileError(t *testing.T) {
 	mux := http.NewServeMux()
 	// GetRef — return a valid ref

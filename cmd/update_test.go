@@ -1344,3 +1344,38 @@ func TestCreatePerChartPRs_UpdatePRBodyError(t *testing.T) {
 		t.Fatalf("expected UpdatePRBody to be called once, got %d", mock.updateBodyCall)
 	}
 }
+
+func TestCreatePerFilePRs_UpdatePRBodyError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingVal: 10, updateBodyErr: errors.New("permission denied")}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
+	if count != 0 {
+		t.Fatalf("expected 0 PRs created (existing PR update attempted), got %d", count)
+	}
+	if mock.updateBodyCall != 1 {
+		t.Fatalf("expected UpdatePRBody to be called once, got %d", mock.updateBodyCall)
+	}
+}
+
+func TestCreateBatchPR_UpdatePRBodyError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingVal: 10, updateBodyErr: errors.New("permission denied")}
+	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
+
+	count, err := createBatchPR(context.Background(), &settings, updates, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 PRs created, got %d", count)
+	}
+	if mock.updateBodyCall != 1 {
+		t.Fatalf("expected UpdatePRBody to be called once, got %d", mock.updateBodyCall)
+	}
+}
