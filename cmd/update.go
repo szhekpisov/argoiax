@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -145,10 +146,30 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
 }
 
+func branchExists(ctx context.Context, ghClient *github.Client, owner, repo, branch string) (bool, error) {
+	_, _, err := ghClient.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
+	if err == nil {
+		return true, nil
+	}
+	var ghErr *github.ErrorResponse
+	if errors.As(err, &ghErr) && ghErr.Response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return false, err
+}
+
 func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo string, cfg *config.Config) error {
 	if cfg.Settings.BaseBranch != "" {
+		exists, err := branchExists(ctx, ghClient, owner, repo, cfg.Settings.BaseBranch)
+		if err != nil {
+			return fmt.Errorf("checking configured baseBranch %q: %w", cfg.Settings.BaseBranch, err)
+		}
+		if !exists {
+			return fmt.Errorf("configured baseBranch %q does not exist in %s/%s; ensure the token has contents permission", cfg.Settings.BaseBranch, owner, repo)
+		}
 		return nil
 	}
+
 	ghRepo, _, err := ghClient.Repositories.Get(ctx, owner, repo)
 	if err != nil {
 		return fmt.Errorf("getting repository default branch: %w", err)
@@ -157,6 +178,7 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 	if branch == "" {
 		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
 	}
+
 	cfg.Settings.BaseBranch = branch
 	slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
 	return nil
