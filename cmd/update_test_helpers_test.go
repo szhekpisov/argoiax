@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v68/github"
+	"github.com/szhekpisov/argoiax/internal/testutil"
 	"github.com/szhekpisov/argoiax/pkg/config"
 	"github.com/szhekpisov/argoiax/pkg/manifest"
 	"github.com/szhekpisov/argoiax/pkg/pr"
@@ -216,30 +217,8 @@ func overrideScanManifests(t *testing.T, fn func(*config.Config, string, string)
 	scanManifests = fn
 }
 
-// newMockGitHubAPIWithHandlers creates a mock GitHub API server that dispatches
-// requests to the provided handlers keyed by "METHOD /path". Unmatched requests
-// return 404.
+// newMockGitHubAPIWithHandlers delegates to testutil.NewMockGitHubClient.
 func newMockGitHubAPIWithHandlers(t *testing.T, handlers map[string]http.HandlerFunc) *github.Client {
 	t.Helper()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		key := r.Method + " " + r.URL.Path
-		if h, ok := handlers[key]; ok {
-			h(w, r)
-			return
-		}
-		t.Logf("unhandled request: %s %s", r.Method, r.URL.Path)
-		http.NotFound(w, r)
-	})
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-
-	client := github.NewClient(nil)
-	baseURL, err := url.Parse(server.URL + "/")
-	if err != nil {
-		t.Fatalf("parsing mock server URL: %v", err)
-	}
-	client.BaseURL = baseURL
-	return client
+	return testutil.NewMockGitHubClient(t, handlers)
 }

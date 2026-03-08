@@ -5,43 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/v68/github"
+	"github.com/szhekpisov/argoiax/internal/testutil"
 )
-
-func newMockCommentAPI(t *testing.T, handlers map[string]http.HandlerFunc) *github.Client {
-	t.Helper()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		key := r.Method + " " + r.URL.Path
-		if h, ok := handlers[key]; ok {
-			h(w, r)
-			return
-		}
-		t.Logf("unexpected request: %s %s", r.Method, r.URL.Path)
-		http.NotFound(w, r)
-	})
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-
-	client := github.NewClient(nil)
-	baseURL, err := url.Parse(server.URL + "/")
-	if err != nil {
-		t.Fatalf("parsing mock server URL: %v", err)
-	}
-	client.BaseURL = baseURL
-	return client
-}
 
 func TestRebase(t *testing.T) {
 	var reactionCreated, branchUpdated bool
 
-	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
 		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
 			reactionCreated = true
 			w.WriteHeader(http.StatusCreated)
@@ -76,7 +49,7 @@ func TestRebase(t *testing.T) {
 func TestCloseAndDeleteBranch(t *testing.T) {
 	var reactionCreated, prClosed, branchDeleted bool
 
-	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
 		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
 			reactionCreated = true
 			w.WriteHeader(http.StatusCreated)
@@ -87,6 +60,7 @@ func TestCloseAndDeleteBranch(t *testing.T) {
 				"number": 7,
 				"state":  "open",
 				"head":   map[string]any{"ref": "argoiax/mychart-1.2.0"},
+				"body":   "Bumps [mychart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
 			}
 			_ = json.NewEncoder(w).Encode(pr)
 		},
@@ -113,12 +87,15 @@ func TestCloseAndDeleteBranch(t *testing.T) {
 		CommentID: 42,
 	}
 
-	headBranch, err := CloseAndDeleteBranch(context.Background(), ec)
+	closed, err := CloseAndDeleteBranch(context.Background(), ec)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if headBranch != "argoiax/mychart-1.2.0" {
-		t.Errorf("headBranch = %q, want %q", headBranch, "argoiax/mychart-1.2.0")
+	if closed.HeadBranch != "argoiax/mychart-1.2.0" {
+		t.Errorf("HeadBranch = %q, want %q", closed.HeadBranch, "argoiax/mychart-1.2.0")
+	}
+	if closed.ChartName != "mychart" {
+		t.Errorf("ChartName = %q, want %q", closed.ChartName, "mychart")
 	}
 	if !reactionCreated {
 		t.Error("expected thumbs-up reaction to be created")
@@ -132,7 +109,7 @@ func TestCloseAndDeleteBranch(t *testing.T) {
 }
 
 func TestRebase_UpdateBranchError(t *testing.T) {
-	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
 		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprint(w, `{"id":1,"content":"+1"}`)
@@ -158,7 +135,7 @@ func TestRebase_UpdateBranchError(t *testing.T) {
 }
 
 func TestCloseAndDeleteBranch_DeleteBranchError(t *testing.T) {
-	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
 		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprint(w, `{"id":1,"content":"+1"}`)
@@ -168,6 +145,7 @@ func TestCloseAndDeleteBranch_DeleteBranchError(t *testing.T) {
 				"number": 7,
 				"state":  "open",
 				"head":   map[string]any{"ref": "argoiax/mychart-1.2.0"},
+				"body":   "Bumps [mychart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
 			}
 			_ = json.NewEncoder(w).Encode(pr)
 		},
@@ -188,12 +166,12 @@ func TestCloseAndDeleteBranch_DeleteBranchError(t *testing.T) {
 		CommentID: 42,
 	}
 
-	headBranch, err := CloseAndDeleteBranch(context.Background(), ec)
+	closed, err := CloseAndDeleteBranch(context.Background(), ec)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if headBranch != "argoiax/mychart-1.2.0" {
-		t.Errorf("headBranch = %q, want %q", headBranch, "argoiax/mychart-1.2.0")
+	if closed.HeadBranch != "argoiax/mychart-1.2.0" {
+		t.Errorf("HeadBranch = %q, want %q", closed.HeadBranch, "argoiax/mychart-1.2.0")
 	}
 	if !strings.Contains(err.Error(), "deleting branch") {
 		t.Errorf("expected 'deleting branch' in error, got: %v", err)
@@ -201,7 +179,7 @@ func TestCloseAndDeleteBranch_DeleteBranchError(t *testing.T) {
 }
 
 func TestCloseAndDeleteBranch_GetPRError(t *testing.T) {
-	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
 		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprint(w, `{"id":1,"content":"+1"}`)
@@ -223,5 +201,84 @@ func TestCloseAndDeleteBranch_GetPRError(t *testing.T) {
 	_, err := CloseAndDeleteBranch(context.Background(), ec)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestExtractChartName(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "per-chart PR body",
+			body: "Bumps [mychart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
+			want: "mychart",
+		},
+		{
+			name: "group PR body",
+			body: "## Updated Charts\n\n| Chart | File | Version |\n",
+			want: "",
+		},
+		{
+			name: "empty body",
+			body: "",
+			want: "",
+		},
+		{
+			name: "chart with dashes",
+			body: "Bumps [cert-manager](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
+			want: "cert-manager",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractChartName(tt.body)
+			if got != tt.want {
+				t.Errorf("extractChartName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReplyError(t *testing.T) {
+	var reactionCreated, commentPosted bool
+	var postedBody string
+
+	client := testutil.NewMockGitHubClient(t, map[string]http.HandlerFunc{
+		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
+			reactionCreated = true
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id":1,"content":"-1"}`)
+		},
+		"POST /repos/testowner/testrepo/issues/7/comments": func(w http.ResponseWriter, r *http.Request) {
+			commentPosted = true
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			postedBody = body["body"]
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id":99}`)
+		},
+	})
+
+	ec := &EventContext{
+		Client:    client,
+		Owner:     "testowner",
+		Repo:      "testrepo",
+		PRNumber:  7,
+		CommentID: 42,
+	}
+
+	ReplyError(context.Background(), ec, "rebase", fmt.Errorf("merge conflict"))
+
+	if !reactionCreated {
+		t.Error("expected -1 reaction to be created")
+	}
+	if !commentPosted {
+		t.Error("expected error comment to be posted")
+	}
+	if !strings.Contains(postedBody, "rebase") || !strings.Contains(postedBody, "merge conflict") {
+		t.Errorf("unexpected comment body: %s", postedBody)
 	}
 }

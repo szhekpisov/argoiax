@@ -99,25 +99,31 @@ func runComment(ctx context.Context, root *rootOptions, githubToken, repoSlug st
 	case "rebase":
 		slog.Info("handling rebase command", "pr", prNumber)
 		if err := comment.Rebase(ctx, ec); err != nil {
+			comment.ReplyError(ctx, ec, cmd.Name, err)
 			return fmt.Errorf("rebase: %w", err)
 		}
 		slog.Info("rebased PR", "pr", prNumber)
 
 	case "recreate":
 		slog.Info("handling recreate command", "pr", prNumber)
-		headBranch, err := comment.CloseAndDeleteBranch(ctx, ec)
+		closed, err := comment.CloseAndDeleteBranch(ctx, ec)
 		if err != nil {
+			comment.ReplyError(ctx, ec, cmd.Name, err)
 			return fmt.Errorf("recreate (close): %w", err)
 		}
-		slog.Info("closed PR and deleted branch", "pr", prNumber, "branch", headBranch)
+		slog.Info("closed PR and deleted branch", "pr", prNumber, "branch", closed.HeadBranch)
 
-		// Re-run update to recreate only the deleted PR.
-		// Limit to 1 PR to avoid creating unrelated PRs for other pending updates.
-		chartFilter := os.Getenv("INPUT_CHART")
+		// Use the chart name from the closed PR body to scope the recreate.
+		// INPUT_CHART env var takes precedence if set.
+		chartFilter := closed.ChartName
+		if cf := os.Getenv("INPUT_CHART"); cf != "" {
+			chartFilter = cf
+		}
 		allowMajor := strings.EqualFold(os.Getenv("INPUT_ALLOW_MAJOR"), "true")
 		maxPRs := 1
 
 		if err := runUpdate(ctx, root, chartFilter, allowMajor, maxPRs, githubToken, repoSlug); err != nil {
+			comment.ReplyError(ctx, ec, cmd.Name, err)
 			return fmt.Errorf("recreate (update): %w", err)
 		}
 		slog.Info("recreated PR", "pr", prNumber)

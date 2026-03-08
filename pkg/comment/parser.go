@@ -48,9 +48,14 @@ func parseLine(line string) *Command {
 	fields := strings.Fields(rest)
 	name := strings.ToLower(fields[0])
 
+	var args []string
+	if len(fields) > 1 {
+		args = fields[1:]
+	}
+
 	return &Command{
 		Name: name,
-		Args: fields[1:],
+		Args: args,
 	}
 }
 
@@ -75,13 +80,13 @@ func stripFencedCodeBlocks(s string) string {
 func stripInlineCode(s string) string {
 	var result strings.Builder
 	inCode := false
-	for i := 0; i < len(s); i++ {
-		if s[i] == '`' {
+	for _, r := range s {
+		if r == '`' {
 			inCode = !inCode
 			continue
 		}
 		if !inCode {
-			result.WriteByte(s[i])
+			result.WriteRune(r)
 		}
 	}
 	return result.String()

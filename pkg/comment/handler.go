@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/google/go-github/v68/github"
@@ -16,6 +18,12 @@ type EventContext struct {
 	Repo      string
 	PRNumber  int
 	CommentID int64
+}
+
+// ClosedPR holds the result of closing a PR and deleting its branch.
+type ClosedPR struct {
+	HeadBranch string
+	ChartName  string // extracted from PR body; empty for group PRs
 }
 
 // Rebase updates the PR branch with the latest base branch using merge-based update.
@@ -37,40 +45,56 @@ func Rebase(ctx context.Context, ec *EventContext) error {
 	return nil
 }
 
+var chartNameRe = regexp.MustCompile(`^\s*Bumps \[([^\]]+)\]`)
+
 // CloseAndDeleteBranch closes the PR and deletes its head branch.
-// Returns the head branch name for logging.
-func CloseAndDeleteBranch(ctx context.Context, ec *EventContext) (string, error) {
+func CloseAndDeleteBranch(ctx context.Context, ec *EventContext) (*ClosedPR, error) {
 	if err := addReaction(ctx, ec, "+1"); err != nil {
-		return "", fmt.Errorf("adding reaction: %w", err)
+		return nil, fmt.Errorf("adding reaction: %w", err)
 	}
 
 	prObj, _, err := ec.Client.PullRequests.Get(ctx, ec.Owner, ec.Repo, ec.PRNumber)
 	if err != nil {
-		return "", fmt.Errorf("getting PR: %w", err)
+		return nil, fmt.Errorf("getting PR: %w", err)
 	}
 
-	headBranch := prObj.GetHead().GetRef()
+	result := &ClosedPR{
+		HeadBranch: prObj.GetHead().GetRef(),
+		ChartName:  extractChartName(prObj.GetBody()),
+	}
 
 	closed := "closed"
 	_, _, err = ec.Client.PullRequests.Edit(ctx, ec.Owner, ec.Repo, ec.PRNumber, &github.PullRequest{
 		State: &closed,
 	})
 	if err != nil {
-		return headBranch, fmt.Errorf("closing PR: %w", err)
+		return result, fmt.Errorf("closing PR: %w", err)
 	}
 
-	_, err = ec.Client.Git.DeleteRef(ctx, ec.Owner, ec.Repo, "heads/"+headBranch)
+	_, err = ec.Client.Git.DeleteRef(ctx, ec.Owner, ec.Repo, "heads/"+result.HeadBranch)
 	if err != nil {
-		return headBranch, fmt.Errorf("deleting branch %s: %w", headBranch, err)
+		return result, fmt.Errorf("deleting branch %s: %w", result.HeadBranch, err)
 	}
 
-	return headBranch, nil
+	return result, nil
+}
+
+// extractChartName parses the chart name from a per-chart PR body.
+// Returns empty string for group PRs or unrecognized formats.
+func extractChartName(body string) string {
+	m := chartNameRe.FindStringSubmatch(body)
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
 }
 
 // ReplyUnknownCommand adds a "confused" reaction and posts a comment listing
 // the supported commands.
 func ReplyUnknownCommand(ctx context.Context, ec *EventContext, cmdName string) error {
-	_ = addReaction(ctx, ec, "confused")
+	if err := addReaction(ctx, ec, "confused"); err != nil {
+		slog.Warn("failed to add confused reaction", "error", err)
+	}
 
 	supported := SupportedCommands()
 	var b strings.Builder
@@ -86,6 +110,21 @@ func ReplyUnknownCommand(ctx context.Context, ec *EventContext, cmdName string) 
 		return fmt.Errorf("posting reply: %w", err)
 	}
 	return nil
+}
+
+// ReplyError adds a "-1" reaction and posts an error comment on the PR.
+func ReplyError(ctx context.Context, ec *EventContext, cmdName string, cmdErr error) {
+	if err := addReaction(ctx, ec, "-1"); err != nil {
+		slog.Warn("failed to add error reaction", "error", err)
+	}
+
+	body := fmt.Sprintf("The `%s` command failed: %s", cmdName, cmdErr)
+	_, _, err := ec.Client.Issues.CreateComment(ctx, ec.Owner, ec.Repo, ec.PRNumber, &github.IssueComment{
+		Body: &body,
+	})
+	if err != nil {
+		slog.Warn("failed to post error reply", "error", err)
+	}
 }
 
 func addReaction(ctx context.Context, ec *EventContext, reaction string) error {

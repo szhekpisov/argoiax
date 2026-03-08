@@ -156,6 +156,7 @@ func TestRunComment_Recreate(t *testing.T) {
 				"number": 7,
 				"state":  "open",
 				"head":   map[string]any{"ref": "argoiax/mychart-1.2.0"},
+				"body":   "Bumps [mychart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
 			}
 			_ = json.NewEncoder(w).Encode(pr)
 		},
@@ -220,3 +221,42 @@ func TestRunComment_UnknownCommand(t *testing.T) {
 	}
 }
 
+func TestRunComment_RebaseError_PostsErrorReply(t *testing.T) {
+	event := prCommentEvent("created", "@argoiax rebase", true)
+	setEventPath(t, writeEventFile(t, event))
+
+	var errorReactionCreated, errorCommentPosted bool
+	client := newMockGitHubAPIWithHandlers(t, map[string]http.HandlerFunc{
+		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["content"] == "-1" {
+				errorReactionCreated = true
+			}
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintf(w, `{"id":1,"content":%q}`, body["content"])
+		},
+		"PUT /repos/testowner/testrepo/pulls/7/update-branch": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			fmt.Fprint(w, `{"message":"merge conflict"}`)
+		},
+		"POST /repos/testowner/testrepo/issues/7/comments": func(w http.ResponseWriter, _ *http.Request) {
+			errorCommentPosted = true
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id":99}`)
+		},
+	})
+	overrideGitHubClient(t, client)
+
+	root := &rootOptions{}
+	err := runComment(context.Background(), root, "fake-token", "testowner/testrepo")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errorReactionCreated {
+		t.Error("expected -1 reaction to be created")
+	}
+	if !errorCommentPosted {
+		t.Error("expected error comment to be posted")
+	}
+}
