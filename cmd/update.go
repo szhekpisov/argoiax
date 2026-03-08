@@ -165,7 +165,7 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 			return fmt.Errorf("checking configured baseBranch %q: %w", cfg.Settings.BaseBranch, err)
 		}
 		if !exists {
-			return fmt.Errorf("configured baseBranch %q does not exist in %s/%s", cfg.Settings.BaseBranch, owner, repo)
+			return fmt.Errorf("configured baseBranch %q does not exist in %s/%s; ensure the token has contents permission", cfg.Settings.BaseBranch, owner, repo)
 		}
 		return nil
 	}
@@ -177,14 +177,6 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 	branch := ghRepo.GetDefaultBranch()
 	if branch == "" {
 		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
-	}
-
-	exists, err := branchExists(ctx, ghClient, owner, repo, branch)
-	if err != nil {
-		return fmt.Errorf("checking default branch %q: %w", branch, err)
-	}
-	if !exists {
-		return fmt.Errorf("default branch %q is not accessible; ensure the token has contents:read permission", branch)
 	}
 
 	cfg.Settings.BaseBranch = branch

@@ -1236,6 +1236,7 @@ func TestDefaultNewGitHubClient(t *testing.T) {
 }
 
 func TestResolveBaseBranch_ConfiguredBranchNotFound(t *testing.T) {
+	t.Parallel()
 	// Repo default is "master", but config says "main" which doesn't exist.
 	client := newMockGitHubAPIWithBranches(t, "master", []string{"master"})
 	cfg := config.DefaultConfig()
@@ -1245,26 +1246,13 @@ func TestResolveBaseBranch_ConfiguredBranchNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent configured baseBranch")
 	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("expected error to mention branch does not exist, got: %v", err)
-	}
-}
-
-func TestResolveBaseBranch_AutoDetectedBranchNotAccessible(t *testing.T) {
-	// Auto-detect returns "main" but GetRef for it returns 404 (permissions issue).
-	client := newMockGitHubAPIWithBranches(t, "main", []string{})
-	cfg := config.DefaultConfig()
-
-	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
-	if err == nil {
-		t.Fatal("expected error for inaccessible auto-detected branch")
-	}
-	if !strings.Contains(err.Error(), "contents:read") {
-		t.Errorf("expected error to mention contents:read permission, got: %v", err)
+	if !strings.Contains(err.Error(), "does not exist") || !strings.Contains(err.Error(), "contents permission") {
+		t.Errorf("expected error to mention branch does not exist and contents permission, got: %v", err)
 	}
 }
 
 func TestResolveBaseBranch_ConfiguredBranch_TransientError(t *testing.T) {
+	t.Parallel()
 	// GetRef returns 500 for the configured branch — should propagate as error, not fall back.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
