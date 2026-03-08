@@ -81,7 +81,7 @@ func DefaultConfig() *Config {
 		Settings: Settings{
 			PRStrategy:          StrategyPerChart,
 			Labels:              []string{"argoiax", "dependencies"},
-			BaseBranch:          "main",
+			BaseBranch:          "",
 			BranchTemplate:      "argoiax/{{.ChartName}}-{{.NewVersion}}",
 			TitleTemplate:       "chore(deps): update {{.ChartName}} to {{.NewVersion}}",
 			GroupBranchTemplate: "argoiax/update-{{.FileBaseName}}",

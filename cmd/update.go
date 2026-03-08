@@ -69,7 +69,7 @@ func runUpdate(ctx context.Context, root *rootOptions, chartFilter string, allow
 		return err
 	}
 
-	refs, err := scanRefs(cfg, root.scanDir, chartFilter)
+	refs, err := scanManifests(cfg, root.scanDir, chartFilter)
 	if err != nil {
 		return err
 	}
@@ -121,14 +121,45 @@ func printDryRun(updates []resolvedUpdate) {
 	}
 }
 
-func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo string, updates []resolvedUpdate, maxPRs int) error {
+// Package-level function variables to allow overriding in tests.
+// Tests that override these must NOT use t.Parallel().
+var (
+	newGitHubClient = defaultNewGitHubClient
+	scanManifests   = scanRefs
+)
+
+func defaultNewGitHubClient(ctx context.Context, token string) *github.Client {
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
 	tc.Timeout = 60 * time.Second
 	tc.Transport = &registry.RetryTransport{Base: tc.Transport, MaxRetries: 3}
-	ghClient := github.NewClient(tc)
+	return github.NewClient(tc)
+}
+
+func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo string, updates []resolvedUpdate, maxPRs int) error {
+	ghClient := newGitHubClient(ctx, token)
+	if err := resolveBaseBranch(ctx, ghClient, owner, repo, cfg); err != nil {
+		return err
+	}
 	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, &cfg.Settings)
 	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
+}
+
+func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo string, cfg *config.Config) error {
+	if cfg.Settings.BaseBranch != "" {
+		return nil
+	}
+	ghRepo, _, err := ghClient.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return fmt.Errorf("getting repository default branch: %w", err)
+	}
+	branch := ghRepo.GetDefaultBranch()
+	if branch == "" {
+		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
+	}
+	cfg.Settings.BaseBranch = branch
+	slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
+	return nil
 }
 
 func dispatchPRs(ctx context.Context, cfg *config.Config, updates []resolvedUpdate, prCreator pr.Creator, maxPRs int) error {

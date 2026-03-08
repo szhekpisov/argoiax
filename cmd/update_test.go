@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-github/v68/github"
 	"github.com/szhekpisov/argoiax/pkg/config"
 	"github.com/szhekpisov/argoiax/pkg/manifest"
 	"github.com/szhekpisov/argoiax/pkg/pr"
@@ -995,5 +997,216 @@ func TestResolveOneUpdate_WithIntermediateVersions(t *testing.T) {
 	}
 	if u.info.OldVersion != "1.0.0" {
 		t.Errorf("expected old version 1.0.0, got %s", u.info.OldVersion)
+	}
+}
+
+// newMockGitHubAPI creates a test server that mocks the GitHub API endpoints
+// needed for default branch detection and PR existence checks.
+// ExistingPR always returns true (existing PR found), so the test avoids
+// needing to mock the full PR creation flow (branch, commit, PR endpoints).
+func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == http.MethodGet:
+			_, _ = fmt.Fprintf(w, `{"default_branch": %q}`, defaultBranch)
+		case r.URL.Path == "/repos/testowner/testrepo/pulls" && r.Method == http.MethodGet:
+			_, _ = fmt.Fprint(w, `[{"number": 1, "html_url": "https://github.com/testowner/testrepo/pull/1"}]`)
+		default:
+			t.Logf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
+	return client
+}
+
+func overrideGitHubClient(t *testing.T, client *github.Client) {
+	t.Helper()
+	orig := newGitHubClient
+	t.Cleanup(func() { newGitHubClient = orig })
+	newGitHubClient = func(_ context.Context, _ string) *github.Client {
+		return client
+	}
+}
+
+func TestResolveBaseBranch_AutoDetect(t *testing.T) {
+	client := newMockGitHubAPI(t, "develop")
+	cfg := config.DefaultConfig()
+
+	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Settings.BaseBranch != "develop" {
+		t.Errorf("expected baseBranch develop, got %s", cfg.Settings.BaseBranch)
+	}
+}
+
+func TestResolveBaseBranch_ExplicitBranch(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Settings.BaseBranch = "custom"
+
+	// Should return immediately without making any API calls.
+	err := resolveBaseBranch(context.Background(), nil, "testowner", "testrepo", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Settings.BaseBranch != "custom" {
+		t.Errorf("expected baseBranch custom, got %s", cfg.Settings.BaseBranch)
+	}
+}
+
+func TestResolveBaseBranch_EmptyDefaultBranch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"default_branch": ""}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+	err = resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error for empty default branch")
+	}
+}
+
+func TestResolveBaseBranch_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+	err = resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error for API failure")
+	}
+}
+
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
+func TestCreatePRs_DetectsDefaultBranch(t *testing.T) {
+	client := newMockGitHubAPI(t, "master")
+	overrideGitHubClient(t, client)
+
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	cfg := config.DefaultConfig()
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := createPRs(context.Background(), cfg, "fake-token", "testowner", "testrepo", updates, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Settings.BaseBranch != "master" {
+		t.Errorf("expected baseBranch master, got %s", cfg.Settings.BaseBranch)
+	}
+}
+
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
+func TestCreatePRs_ExplicitBaseBranch(t *testing.T) {
+	client := newMockGitHubAPI(t, "master")
+	overrideGitHubClient(t, client)
+
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	cfg := config.DefaultConfig()
+	cfg.Settings.BaseBranch = "main"
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	err := createPRs(context.Background(), cfg, "fake-token", "testowner", "testrepo", updates, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Settings.BaseBranch != "main" {
+		t.Errorf("expected baseBranch to remain main, got %s", cfg.Settings.BaseBranch)
+	}
+}
+
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
+func TestCreatePRs_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
+	overrideGitHubClient(t, client)
+
+	cfg := config.DefaultConfig()
+	err = createPRs(context.Background(), cfg, "fake-token", "testowner", "testrepo", nil, 10)
+	if err == nil {
+		t.Fatal("expected error for API failure")
+	}
+}
+
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
+func TestRunUpdate_WithUpdates(t *testing.T) {
+	srv := newTestHelmServer(t)
+	client := newMockGitHubAPI(t, "main")
+	overrideGitHubClient(t, client)
+
+	dir := t.TempDir()
+	content := "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: myapp\nspec:\n  source:\n    repoURL: " + srv.URL + "\n    chart: mychart\n    targetRevision: 1.0.0\n"
+	path := filepath.Join(dir, "app.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := &rootOptions{scanDir: dir}
+	err := runUpdate(context.Background(), root, "", false, 0, "fake-token", "testowner/testrepo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// DO NOT add t.Parallel — overrides package-level scanManifests.
+func TestRunUpdate_ScanError(t *testing.T) {
+	orig := scanManifests
+	t.Cleanup(func() { scanManifests = orig })
+	scanManifests = func(_ *config.Config, _, _ string) ([]manifest.ChartReference, error) {
+		return nil, errors.New("scan failed")
+	}
+
+	root := &rootOptions{scanDir: t.TempDir()}
+	err := runUpdate(context.Background(), root, "", false, 0, "fake-token", "owner/repo")
+	if err == nil {
+		t.Fatal("expected error from scanManifests")
+	}
+}
+
+func TestDefaultNewGitHubClient(t *testing.T) {
+	client := defaultNewGitHubClient(context.Background(), "fake-token")
+	if client == nil {
+		t.Fatal("expected non-nil client")
 	}
 }
