@@ -1010,9 +1010,9 @@ func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == "GET":
-			fmt.Fprintf(w, `{"default_branch": %q}`, defaultBranch)
-		case r.URL.Path == "/repos/testowner/testrepo/pulls" && r.Method == "GET":
+		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == http.MethodGet:
+			_, _ = fmt.Fprintf(w, `{"default_branch": %q}`, defaultBranch)
+		case r.URL.Path == "/repos/testowner/testrepo/pulls" && r.Method == http.MethodGet:
 			fmt.Fprint(w, `[{"number": 1, "html_url": "https://github.com/testowner/testrepo/pull/1"}]`)
 		default:
 			t.Logf("unexpected request: %s %s", r.Method, r.URL.Path)
