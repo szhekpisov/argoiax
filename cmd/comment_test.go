@@ -192,8 +192,13 @@ func TestRunComment_UnknownCommand(t *testing.T) {
 	event := prCommentEvent("created", "@argoiax deploy", true)
 	setEventPath(t, writeEventFile(t, event))
 
-	var commentPosted bool
+	var reactionCreated, commentPosted bool
 	client := newMockGitHubAPIWithHandlers(t, map[string]http.HandlerFunc{
+		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
+			reactionCreated = true
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id":1,"content":"confused"}`)
+		},
 		"POST /repos/testowner/testrepo/issues/7/comments": func(w http.ResponseWriter, _ *http.Request) {
 			commentPosted = true
 			w.WriteHeader(http.StatusCreated)
@@ -206,6 +211,9 @@ func TestRunComment_UnknownCommand(t *testing.T) {
 	err := runComment(context.Background(), root, "fake-token", "testowner/testrepo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reactionCreated {
+		t.Error("expected confused reaction to be created")
 	}
 	if !commentPosted {
 		t.Error("expected unknown command reply to be posted")

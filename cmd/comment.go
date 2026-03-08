@@ -111,11 +111,11 @@ func runComment(ctx context.Context, root *rootOptions, githubToken, repoSlug st
 		}
 		slog.Info("closed PR and deleted branch", "pr", prNumber, "branch", headBranch)
 
-		// Re-run update with the same flags forwarded by action.yml.
-		// The update command's ExistingPR dedup ensures only the missing PR is recreated.
+		// Re-run update to recreate only the deleted PR.
+		// Limit to 1 PR to avoid creating unrelated PRs for other pending updates.
 		chartFilter := os.Getenv("INPUT_CHART")
 		allowMajor := strings.EqualFold(os.Getenv("INPUT_ALLOW_MAJOR"), "true")
-		maxPRs := 0
+		maxPRs := 1
 
 		if err := runUpdate(ctx, root, chartFilter, allowMajor, maxPRs, githubToken, repoSlug); err != nil {
 			return fmt.Errorf("recreate (update): %w", err)
