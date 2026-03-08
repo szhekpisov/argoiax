@@ -1013,7 +1013,7 @@ func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
 		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == http.MethodGet:
 			_, _ = fmt.Fprintf(w, `{"default_branch": %q}`, defaultBranch)
 		case r.URL.Path == "/repos/testowner/testrepo/pulls" && r.Method == http.MethodGet:
-			fmt.Fprint(w, `[{"number": 1, "html_url": "https://github.com/testowner/testrepo/pull/1"}]`)
+			_, _ = fmt.Fprint(w, `[{"number": 1, "html_url": "https://github.com/testowner/testrepo/pull/1"}]`)
 		default:
 			t.Logf("unexpected request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
@@ -1070,7 +1070,7 @@ func TestResolveBaseBranch_ExplicitBranch(t *testing.T) {
 func TestResolveBaseBranch_EmptyDefaultBranch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"default_branch": ""}`)
+		_, _ = fmt.Fprint(w, `{"default_branch": ""}`)
 	}))
 	t.Cleanup(server.Close)
 
