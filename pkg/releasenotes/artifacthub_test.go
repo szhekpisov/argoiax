@@ -304,3 +304,65 @@ func TestDiscoverRepoFromArtifactHub_NotFound(t *testing.T) {
 		t.Errorf("expected empty repo for 404, got %+v", got)
 	}
 }
+
+func TestDiscoverRepoFromArtifactHub_ConnectionError(t *testing.T) {
+	client := newRewriteClient("http://127.0.0.1:1", "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo on connection error, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{invalid"))
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo on invalid JSON, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_GitHubShortPath(t *testing.T) {
+	// content_url is a GitHub URL but with only one path segment (no repo)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(artifactHubPackage{
+			ContentURL: "https://github.com/orgonly",
+		})
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for short GitHub path, got %+v", got)
+	}
+}
+
+func TestTryPackage_InvalidURL(t *testing.T) {
+	f := NewArtifactHubFetcher(&http.Client{})
+	// Control character in package path makes URL unparseable
+	entry, _, err := f.tryPackage(context.Background(), "helm/\x7f/\x7f", "1.0.0")
+	if err == nil {
+		t.Error("expected error for invalid URL")
+	}
+	if entry != nil {
+		t.Error("expected nil entry for invalid URL")
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_InvalidURL(t *testing.T) {
+	// Control character in chart name makes URL unparseable
+	got := discoverRepoFromArtifactHub(context.Background(), &http.Client{}, "\x7f")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for invalid URL, got %+v", got)
+	}
+}
