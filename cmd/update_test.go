@@ -1067,6 +1067,27 @@ func TestResolveBaseBranch_ExplicitBranch(t *testing.T) {
 	}
 }
 
+func TestResolveBaseBranch_EmptyDefaultBranch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"default_branch": ""}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+	err = resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error for empty default branch")
+	}
+}
+
 func TestResolveBaseBranch_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -1087,6 +1108,7 @@ func TestResolveBaseBranch_APIError(t *testing.T) {
 	}
 }
 
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
 func TestCreatePRs_DetectsDefaultBranch(t *testing.T) {
 	client := newMockGitHubAPI(t, "master")
 	overrideGitHubClient(t, client)
@@ -1105,6 +1127,7 @@ func TestCreatePRs_DetectsDefaultBranch(t *testing.T) {
 	}
 }
 
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
 func TestCreatePRs_ExplicitBaseBranch(t *testing.T) {
 	client := newMockGitHubAPI(t, "master")
 	overrideGitHubClient(t, client)
@@ -1124,6 +1147,7 @@ func TestCreatePRs_ExplicitBaseBranch(t *testing.T) {
 	}
 }
 
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
 func TestCreatePRs_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -1145,6 +1169,7 @@ func TestCreatePRs_APIError(t *testing.T) {
 	}
 }
 
+// DO NOT add t.Parallel — overrides package-level newGitHubClient.
 func TestRunUpdate_WithUpdates(t *testing.T) {
 	srv := newTestHelmServer(t)
 	client := newMockGitHubAPI(t, "main")
@@ -1164,6 +1189,7 @@ func TestRunUpdate_WithUpdates(t *testing.T) {
 	}
 }
 
+// DO NOT add t.Parallel — overrides package-level scanManifests.
 func TestRunUpdate_ScanError(t *testing.T) {
 	orig := scanManifests
 	t.Cleanup(func() { scanManifests = orig })

@@ -153,7 +153,11 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 	if err != nil {
 		return fmt.Errorf("getting repository default branch: %w", err)
 	}
-	cfg.Settings.BaseBranch = ghRepo.GetDefaultBranch()
+	branch := ghRepo.GetDefaultBranch()
+	if branch == "" {
+		return fmt.Errorf("repository %s/%s has no default branch", owner, repo)
+	}
+	cfg.Settings.BaseBranch = branch
 	slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
 	return nil
 }
