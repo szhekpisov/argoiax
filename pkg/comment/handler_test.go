@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v68/github"
@@ -153,6 +154,49 @@ func TestRebase_UpdateBranchError(t *testing.T) {
 	err := Rebase(context.Background(), ec)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestCloseAndDeleteBranch_DeleteBranchError(t *testing.T) {
+	client := newMockCommentAPI(t, map[string]http.HandlerFunc{
+		"POST /repos/testowner/testrepo/issues/comments/42/reactions": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id":1,"content":"+1"}`)
+		},
+		"GET /repos/testowner/testrepo/pulls/7": func(w http.ResponseWriter, _ *http.Request) {
+			pr := map[string]any{
+				"number": 7,
+				"state":  "open",
+				"head":   map[string]any{"ref": "argoiax/mychart-1.2.0"},
+			}
+			_ = json.NewEncoder(w).Encode(pr)
+		},
+		"PATCH /repos/testowner/testrepo/pulls/7": func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, `{"number":7,"state":"closed"}`)
+		},
+		"DELETE /repos/testowner/testrepo/git/refs/heads/argoiax/mychart-1.2.0": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			fmt.Fprint(w, `{"message":"Reference does not exist"}`)
+		},
+	})
+
+	ec := &EventContext{
+		Client:    client,
+		Owner:     "testowner",
+		Repo:      "testrepo",
+		PRNumber:  7,
+		CommentID: 42,
+	}
+
+	headBranch, err := CloseAndDeleteBranch(context.Background(), ec)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if headBranch != "argoiax/mychart-1.2.0" {
+		t.Errorf("headBranch = %q, want %q", headBranch, "argoiax/mychart-1.2.0")
+	}
+	if !strings.Contains(err.Error(), "deleting branch") {
+		t.Errorf("expected 'deleting branch' in error, got: %v", err)
 	}
 }
 

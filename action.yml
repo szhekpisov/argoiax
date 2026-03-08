@@ -112,13 +112,13 @@ runs:
         ARGS="$ARGS --log-level $INPUT_LOG_LEVEL"
 
         if [ "$INPUT_COMMAND" = "update" ]; then
-          ARGS="$ARGS --repo $INPUT_REPO"
+          ARGS="$ARGS --repo \"$INPUT_REPO\""
           ARGS="$ARGS --max-prs $INPUT_MAX_PRS"
           if [ "$INPUT_ALLOW_MAJOR" = "true" ]; then
             ARGS="$ARGS --allow-major"
           fi
         elif [ "$INPUT_COMMAND" = "comment" ]; then
-          ARGS="$ARGS --repo $INPUT_REPO"
+          ARGS="$ARGS --repo \"$INPUT_REPO\""
         fi
 
         if [ -n "$INPUT_CHART" ]; then

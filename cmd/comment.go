@@ -77,16 +77,11 @@ func runComment(ctx context.Context, root *rootOptions, githubToken, repoSlug st
 	// Validate command
 	supported := comment.SupportedCommands()
 	if !slices.Contains(supported, cmd.Name) {
-		var b strings.Builder
-		fmt.Fprintf(&b, "Unknown command `%s`. Supported commands:\n", cmd.Name)
-		for _, s := range supported {
-			fmt.Fprintf(&b, "- `@argoiax %s`\n", s)
+		ec := &comment.EventContext{
+			Client: ghClient, Owner: owner, Repo: repo,
+			PRNumber: prNumber, CommentID: event.Comment.GetID(),
 		}
-		body := b.String()
-		_, _, err := ghClient.Issues.CreateComment(ctx, owner, repo, prNumber, &github.IssueComment{
-			Body: &body,
-		})
-		if err != nil {
+		if err := comment.ReplyUnknownCommand(ctx, ec, cmd.Name); err != nil {
 			return fmt.Errorf("posting unknown command reply: %w", err)
 		}
 		return nil
@@ -116,16 +111,10 @@ func runComment(ctx context.Context, root *rootOptions, githubToken, repoSlug st
 		}
 		slog.Info("closed PR and deleted branch", "pr", prNumber, "branch", headBranch)
 
-		// Determine chart and allow-major flags for the update re-run.
-		// Pass empty chart filter so the update command re-scans everything;
-		// its built-in ExistingPR dedup ensures only the missing PR is recreated.
-		chartFilter := ""
-		allowMajor := false
-
-		// Parse flags from environment if present (forwarded by action.yml)
-		if v := os.Getenv("INPUT_ALLOW_MAJOR"); strings.EqualFold(v, "true") {
-			allowMajor = true
-		}
+		// Re-run update with the same flags forwarded by action.yml.
+		// The update command's ExistingPR dedup ensures only the missing PR is recreated.
+		chartFilter := os.Getenv("INPUT_CHART")
+		allowMajor := strings.EqualFold(os.Getenv("INPUT_ALLOW_MAJOR"), "true")
 		maxPRs := 0
 
 		if err := runUpdate(ctx, root, chartFilter, allowMajor, maxPRs, githubToken, repoSlug); err != nil {

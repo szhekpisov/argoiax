@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v68/github"
 )
@@ -64,6 +65,27 @@ func CloseAndDeleteBranch(ctx context.Context, ec *EventContext) (string, error)
 	}
 
 	return headBranch, nil
+}
+
+// ReplyUnknownCommand adds a "confused" reaction and posts a comment listing
+// the supported commands.
+func ReplyUnknownCommand(ctx context.Context, ec *EventContext, cmdName string) error {
+	_ = addReaction(ctx, ec, "confused")
+
+	supported := SupportedCommands()
+	var b strings.Builder
+	fmt.Fprintf(&b, "Unknown command `%s`. Supported commands:\n", cmdName)
+	for _, s := range supported {
+		fmt.Fprintf(&b, "- `@argoiax %s`\n", s)
+	}
+	body := b.String()
+	_, _, err := ec.Client.Issues.CreateComment(ctx, ec.Owner, ec.Repo, ec.PRNumber, &github.IssueComment{
+		Body: &body,
+	})
+	if err != nil {
+		return fmt.Errorf("posting reply: %w", err)
+	}
+	return nil
 }
 
 func addReaction(ctx context.Context, ec *EventContext, reaction string) error {
