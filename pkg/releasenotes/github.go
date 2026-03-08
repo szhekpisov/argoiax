@@ -50,6 +50,7 @@ func (f *GitHubFetcher) fetchRelease(ctx context.Context, repo GitHubRepo, versi
 	tagPatterns := []string{
 		version,
 		"v" + version,
+		fmt.Sprintf("%s-%s", repo.ChartName, version),
 		fmt.Sprintf("%s-%s", repo.Repo, version),
 	}
 

@@ -8,17 +8,19 @@ import (
 )
 
 // MapChartToRepo determines the GitHub repository for a chart.
-func MapChartToRepo(_, repoURL string, chartCfg *config.Chart) GitHubRepo {
+func MapChartToRepo(chartName, repoURL string, chartCfg *config.Chart) GitHubRepo {
 	// Check explicit config override first
 	if chartCfg != nil && chartCfg.GithubRepo != "" {
 		parts := strings.SplitN(chartCfg.GithubRepo, "/", 2)
 		if len(parts) == 2 {
-			return GitHubRepo{Owner: parts[0], Repo: parts[1]}
+			return GitHubRepo{Owner: parts[0], Repo: parts[1], ChartName: chartName}
 		}
 	}
 
 	// Try heuristic mapping
-	return heuristicMap(repoURL)
+	repo := heuristicMap(repoURL)
+	repo.ChartName = chartName
+	return repo
 }
 
 func heuristicMap(repoURL string) GitHubRepo {

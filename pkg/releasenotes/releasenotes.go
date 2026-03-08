@@ -48,8 +48,9 @@ type Fetcher interface {
 
 // GitHubRepo identifies a GitHub repository.
 type GitHubRepo struct {
-	Owner string
-	Repo  string
+	Owner     string
+	Repo      string
+	ChartName string
 }
 
 // Orchestrator coordinates multiple release note sources with fallback.
