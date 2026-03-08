@@ -23,13 +23,17 @@ import (
 )
 
 type mockCreator struct {
-	existing map[string]bool
+	existing map[string]int // branch → PR number (0 means no PR)
 	prs      []*pr.UpdateInfo
 	groupPRs []pr.UpdateGroup
 }
 
-func (m *mockCreator) ExistingPR(_ context.Context, branch string) (bool, error) {
+func (m *mockCreator) ExistingPR(_ context.Context, branch string) (int, error) {
 	return m.existing[branch], nil
+}
+
+func (m *mockCreator) UpdatePRBody(_ context.Context, _ int, _ string) error {
+	return nil
 }
 
 func (m *mockCreator) CreatePR(_ context.Context, info *pr.UpdateInfo, _ []byte, _ string) (*pr.Result, error) {
@@ -165,7 +169,7 @@ func TestCreatePerChartPRs_Basic(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
@@ -182,7 +186,7 @@ func TestCreatePerChartPRs_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{"argoiax/mychart-1.1.0": true}}
+	mock := &mockCreator{existing: map[string]int{"argoiax/mychart-1.1.0": 42}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
@@ -196,7 +200,7 @@ func TestCreatePerChartPRs_MaxPRLimit(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{
 		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
 		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
@@ -213,7 +217,7 @@ func TestCreatePerFilePRs_Basic(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{
 		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
 		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
@@ -233,7 +237,7 @@ func TestCreateBatchPR_Basic(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{
 		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
 		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
@@ -411,18 +415,22 @@ func TestResolveRepo(t *testing.T) {
 // errMockCreator is a mock Creator that returns errors from its methods.
 type errMockCreator struct {
 	existingErr error
-	existingVal bool
+	existingVal int
 	createPRErr error
 	groupPRErr  error
 	prs         []*pr.UpdateInfo
 	groupPRs    []pr.UpdateGroup
 }
 
-func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (bool, error) {
+func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (int, error) {
 	if m.existingErr != nil {
-		return false, m.existingErr
+		return 0, m.existingErr
 	}
 	return m.existingVal, nil
+}
+
+func (m *errMockCreator) UpdatePRBody(_ context.Context, _ int, _ string) error {
+	return nil
 }
 
 func (m *errMockCreator) CreatePR(_ context.Context, info *pr.UpdateInfo, _ []byte, _ string) (*pr.Result, error) {
@@ -448,7 +456,7 @@ func TestCreatePerChartPRs_BranchRenderError(t *testing.T) {
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
 	settings.BranchTemplate = "{{.InvalidField}}" // invalid template field
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
@@ -480,7 +488,7 @@ func TestCreatePerFilePRs_MaxPRLimit(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	p2 := writeTestManifest(t, dir, "app2", "chart2", "2.0.0")
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{
 		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
 		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
@@ -498,7 +506,7 @@ func TestCreatePerFilePRs_SkipsExisting(t *testing.T) {
 	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
 	// The group branch template is "argoiax/update-{{.FileBaseName}}" and FileBaseName is "app1"
-	mock := &mockCreator{existing: map[string]bool{"argoiax/update-app1": true}}
+	mock := &mockCreator{existing: map[string]int{"argoiax/update-app1": 10}}
 	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
@@ -527,7 +535,7 @@ func TestCreateBatchPR_ExistingPR(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
 	// Batch uses GroupBranchTemplate with FileBaseName="batch" for multi-file
-	mock := &mockCreator{existing: map[string]bool{"argoiax/update-app1": true}}
+	mock := &mockCreator{existing: map[string]int{"argoiax/update-app1": 10}}
 	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
 
 	count, err := createBatchPR(context.Background(), &settings, updates, mock)
@@ -544,7 +552,7 @@ func TestCreateBatchPR_BranchRenderError(t *testing.T) {
 	p1 := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
 	settings.GroupBranchTemplate = "{{.InvalidField}}" // invalid template field
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(p1, "chart1", "1.0.0", "1.1.0")}
 
 	_, err := createBatchPR(context.Background(), &settings, updates, mock)
@@ -705,7 +713,7 @@ func TestCreatePerFilePRs_BranchRenderError(t *testing.T) {
 	path := writeTestManifest(t, dir, "app1", "chart1", "1.0.0")
 	settings := testSettings()
 	settings.GroupBranchTemplate = "{{.InvalidField}}"
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
@@ -716,7 +724,7 @@ func TestCreatePerFilePRs_BranchRenderError(t *testing.T) {
 
 func TestCreatePerFilePRs_ApplyFileError(t *testing.T) {
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerFilePRs(context.Background(), &settings, updates, mock, 10)
@@ -727,7 +735,7 @@ func TestCreatePerFilePRs_ApplyFileError(t *testing.T) {
 
 func TestCreatePerChartPRs_ApplyFileError(t *testing.T) {
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
 
 	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
@@ -740,7 +748,7 @@ func TestCreatePerChartPRs_ExistingPRCheckError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{existingErr: errors.New("API error"), existingVal: true}
+	mock := &errMockCreator{existingErr: errors.New("API error"), existingVal: 1}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	// ExistingPR returns error but existingVal is false (default when err), so it continues
@@ -769,7 +777,7 @@ func TestCreatePerFilePRs_ExistingPRCheckError(t *testing.T) {
 
 func TestCreateBatchPR_ApplyFileError(t *testing.T) {
 	settings := testSettings()
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate("/nonexistent/file.yaml", "chart1", "1.0.0", "1.1.0")}
 
 	_, err := createBatchPR(context.Background(), &settings, updates, mock)
@@ -867,7 +875,7 @@ func TestDispatchPRs_DefaultStrategy(t *testing.T) {
 	settings := testSettings()
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
@@ -886,7 +894,7 @@ func TestDispatchPRs_PerFileStrategy(t *testing.T) {
 	settings.PRStrategy = config.StrategyPerFile
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
@@ -905,7 +913,7 @@ func TestDispatchPRs_BatchStrategy(t *testing.T) {
 	settings.PRStrategy = config.StrategyBatch
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)
@@ -941,7 +949,7 @@ func TestDispatchPRs_MaxPRsDefaultsToConfig(t *testing.T) {
 	settings.MaxOpenPRs = 1
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &mockCreator{existing: map[string]bool{}}
+	mock := &mockCreator{existing: map[string]int{}}
 	updates := []resolvedUpdate{
 		makeUpdate(p1, "chart1", "1.0.0", "1.1.0"),
 		makeUpdate(p2, "chart2", "2.0.0", "2.1.0"),
@@ -962,7 +970,7 @@ func TestDispatchPRs_NoPRsCreated(t *testing.T) {
 	settings := testSettings()
 	cfg := config.DefaultConfig()
 	cfg.Settings = settings
-	mock := &mockCreator{existing: map[string]bool{"argoiax/mychart-1.1.0": true}}
+	mock := &mockCreator{existing: map[string]int{"argoiax/mychart-1.1.0": 42}}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
 	err := dispatchPRs(context.Background(), cfg, updates, mock, 10)

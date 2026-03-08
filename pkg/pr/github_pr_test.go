@@ -224,19 +224,19 @@ func TestExistingPR(t *testing.T) {
 	client := newTestGitHubServer(t)
 	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
 
-	exists, err := creator.ExistingPR(context.Background(), "existing-branch")
+	prNum, err := creator.ExistingPR(context.Background(), "existing-branch")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !exists {
+	if prNum == 0 {
 		t.Error("expected existing PR to be found")
 	}
 
-	exists, err = creator.ExistingPR(context.Background(), "new-branch")
+	prNum, err = creator.ExistingPR(context.Background(), "new-branch")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if exists {
+	if prNum != 0 {
 		t.Error("expected no existing PR")
 	}
 }
