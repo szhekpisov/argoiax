@@ -127,6 +127,16 @@ func createPRs(ctx context.Context, cfg *config.Config, token, owner, repo strin
 	tc.Timeout = 60 * time.Second
 	tc.Transport = &registry.RetryTransport{Base: tc.Transport, MaxRetries: 3}
 	ghClient := github.NewClient(tc)
+
+	if cfg.Settings.BaseBranch == "" {
+		ghRepo, _, err := ghClient.Repositories.Get(ctx, owner, repo)
+		if err != nil {
+			return fmt.Errorf("getting repository default branch: %w", err)
+		}
+		cfg.Settings.BaseBranch = ghRepo.GetDefaultBranch()
+		slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
+	}
+
 	prCreator := pr.NewGitHubCreator(ghClient, owner, repo, &cfg.Settings)
 	return dispatchPRs(ctx, cfg, updates, prCreator, maxPRs)
 }
