@@ -130,6 +130,38 @@ func TestGitHubFetcher_Fetch_ChartSuffixedTag(t *testing.T) {
 	}
 }
 
+func TestGitHubFetcher_Fetch_HelmVTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/bitnami-labs/sealed-secrets/releases/tags/helm-v2.18.3" {
+			_ = json.NewEncoder(w).Encode(githubRelease{
+				TagName: "helm-v2.18.3",
+				Body:    "## What's Changed\n* Update sealed-secrets to 0.29.0",
+				HTMLURL: "https://github.com/bitnami-labs/sealed-secrets/releases/tag/helm-v2.18.3",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{
+		Owner:     "bitnami-labs",
+		Repo:      "sealed-secrets",
+		ChartName: "sealed-secrets",
+	}, []string{"2.18.3"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry via helm-v tag pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "2.18.3" {
+		t.Errorf("Version = %q, want %q", entries[0].Version, "2.18.3")
+	}
+}
+
 func TestGitHubFetcher_Fetch_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)

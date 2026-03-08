@@ -98,6 +98,45 @@ func TestIntegration_KubernetesAutoscalerReleaseNotes(t *testing.T) {
 	t.Logf("rendered PR body (%d bytes):\n%s", len(body), body)
 }
 
+func TestIntegration_SealedSecretsReleaseNotes(t *testing.T) {
+	cfg := config.ReleaseNotesConfig{
+		Enabled:             true,
+		MaxLength:           10000,
+		IncludeIntermediate: true,
+		Sources:             []string{config.SourceGitHubReleases, config.SourceArtifactHub, config.SourceChangelog},
+	}
+
+	o := releasenotes.NewOrchestrator(cfg, "")
+
+	notes := o.FetchNotes(context.Background(), "sealed-secrets", "https://bitnami-labs.github.io/sealed-secrets", []string{"2.18.3"}, nil)
+	if notes == nil {
+		t.Fatal("expected non-nil release notes for sealed-secrets chart")
+	}
+	if len(notes.Entries) == 0 {
+		t.Fatal("expected at least one release notes entry")
+	}
+
+	t.Logf("source: %s", notes.SourceURL)
+	for _, e := range notes.Entries {
+		t.Logf("version %s: %d bytes, url: %s", e.Version, len(e.Body), e.URL)
+	}
+
+	info := pr.UpdateInfo{
+		ChartName:    "sealed-secrets",
+		RepoURL:      "https://bitnami-labs.github.io/sealed-secrets",
+		OldVersion:   "2.17.0",
+		NewVersion:   "2.18.3",
+		ReleaseNotes: notes,
+	}
+	body := pr.RenderPRBody(&info)
+
+	requireContains(t, body, "<details>", "collapsible section")
+	requireContains(t, body, "<h2>2.18.3</h2>", "version header")
+	requireContains(t, body, "bitnami-labs/sealed-secrets", "source repo link")
+
+	t.Logf("rendered PR body (%d bytes):\n%s", len(body), body)
+}
+
 func requireContains(t *testing.T, body, substr, desc string) {
 	t.Helper()
 	if !strings.Contains(body, substr) {
