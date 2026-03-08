@@ -242,11 +242,9 @@ func TestRunUpdate_WithUpdates(t *testing.T) {
 
 // DO NOT add t.Parallel — overrides package-level scanManifests.
 func TestRunUpdate_ScanError(t *testing.T) {
-	orig := scanManifests
-	t.Cleanup(func() { scanManifests = orig })
-	scanManifests = func(_ *config.Config, _, _ string) ([]manifest.ChartReference, error) {
+	overrideScanManifests(t, func(_ *config.Config, _, _ string) ([]manifest.ChartReference, error) {
 		return nil, errors.New("scan failed")
-	}
+	})
 
 	root := &rootOptions{scanDir: t.TempDir()}
 	err := runUpdate(context.Background(), root, "", false, 0, "fake-token", "owner/repo")

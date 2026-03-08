@@ -6,7 +6,7 @@ branding:
 
 inputs:
   command:
-    description: 'Command to run (scan or update)'
+    description: 'Command to run (scan, update, or comment)'
     required: false
     default: 'update'
   config:
@@ -117,6 +117,8 @@ runs:
           if [ "$INPUT_ALLOW_MAJOR" = "true" ]; then
             ARGS="$ARGS --allow-major"
           fi
+        elif [ "$INPUT_COMMAND" = "comment" ]; then
+          ARGS="$ARGS --repo $INPUT_REPO"
         fi
 
         if [ -n "$INPUT_CHART" ]; then

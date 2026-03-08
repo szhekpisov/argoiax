@@ -43,7 +43,8 @@ func RenderPRBody(info *UpdateInfo) string {
 
 	// Footer
 	writeFooter(&b, []string{
-		"- Close this PR to stop argoiax from recreating it",
+		"- `@argoiax rebase` will rebase this PR",
+		"- `@argoiax recreate` will close this PR and recreate it from scratch",
 	})
 
 	return b.String()
@@ -90,7 +91,8 @@ func RenderGroupPRBody(group UpdateGroup) string {
 	// Footer
 	b.WriteString("\n<br />\n\n")
 	writeFooter(&b, []string{
-		"- Close this PR to stop argoiax from recreating it",
+		"- `@argoiax rebase` will rebase this PR",
+		"- `@argoiax recreate` will close this PR and recreate it from scratch",
 	})
 
 	return b.String()
