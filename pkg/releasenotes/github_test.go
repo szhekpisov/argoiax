@@ -61,6 +61,39 @@ func TestGitHubFetcher_Fetch_Success(t *testing.T) {
 	}
 }
 
+func TestGitHubFetcher_Fetch_ChartNameTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only respond to the chart-name tag pattern
+		if r.URL.Path == "/repos/prometheus-community/helm-charts/releases/tags/kube-prometheus-stack-70.4.1" {
+			_ = json.NewEncoder(w).Encode(githubRelease{
+				TagName: "kube-prometheus-stack-70.4.1",
+				Body:    "release notes for kube-prometheus-stack 70.4.1",
+				HTMLURL: "https://github.com/prometheus-community/helm-charts/releases/tag/kube-prometheus-stack-70.4.1",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{
+		Owner:     "prometheus-community",
+		Repo:      "helm-charts",
+		ChartName: "kube-prometheus-stack",
+	}, []string{"70.4.1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry via chart-name tag pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "70.4.1" {
+		t.Errorf("entries[0].Version = %q, want %q", entries[0].Version, "70.4.1")
+	}
+}
+
 func TestGitHubFetcher_Fetch_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)

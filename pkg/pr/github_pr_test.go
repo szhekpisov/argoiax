@@ -82,6 +82,16 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 		}
 	})
 
+	// EditPullRequest — accept PR update
+	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		pr := &github.PullRequest{
+			Number:  new(42),
+			HTMLURL: new("https://github.com/owner/repo/pull/42"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(pr)
+	})
+
 	// DeleteRef — accept branch deletion
 	mux.HandleFunc("DELETE /api/v3/repos/{owner}/{repo}/git/refs/{rest...}", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -238,6 +248,16 @@ func TestExistingPR(t *testing.T) {
 	}
 	if prNum != 0 {
 		t.Error("expected no existing PR")
+	}
+}
+
+func TestUpdatePRBody(t *testing.T) {
+	client := newTestGitHubServer(t)
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
+
+	err := creator.UpdatePRBody(context.Background(), 42, "updated body text")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

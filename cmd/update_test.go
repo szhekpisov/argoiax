@@ -414,12 +414,14 @@ func TestResolveRepo(t *testing.T) {
 
 // errMockCreator is a mock Creator that returns errors from its methods.
 type errMockCreator struct {
-	existingErr error
-	existingVal int
-	createPRErr error
-	groupPRErr  error
-	prs         []*pr.UpdateInfo
-	groupPRs    []pr.UpdateGroup
+	existingErr    error
+	existingVal    int
+	createPRErr    error
+	groupPRErr     error
+	updateBodyErr  error
+	updateBodyCall int // counts UpdatePRBody invocations
+	prs            []*pr.UpdateInfo
+	groupPRs       []pr.UpdateGroup
 }
 
 func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (int, error) {
@@ -430,7 +432,8 @@ func (m *errMockCreator) ExistingPR(_ context.Context, _ string) (int, error) {
 }
 
 func (m *errMockCreator) UpdatePRBody(_ context.Context, _ int, _ string) error {
-	return nil
+	m.updateBodyCall++
+	return m.updateBodyErr
 }
 
 func (m *errMockCreator) CreatePR(_ context.Context, info *pr.UpdateInfo, _ []byte, _ string) (*pr.Result, error) {
@@ -748,13 +751,11 @@ func TestCreatePerChartPRs_ExistingPRCheckError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
 	settings := testSettings()
-	mock := &errMockCreator{existingErr: errors.New("API error"), existingVal: 1}
+	// ExistingPR returns (0, error) when existingErr is set, so existingPR == 0 and we proceed to create
+	mock := &errMockCreator{existingErr: errors.New("API error")}
 	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
 
-	// ExistingPR returns error but existingVal is false (default when err), so it continues
-	mock2 := &errMockCreator{existingErr: errors.New("API error")}
-	count := createPerChartPRs(context.Background(), &settings, updates, mock2, 10)
-	_ = mock
+	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
 	// Should still try to create the PR despite the ExistingPR error
 	if count != 1 {
 		t.Fatalf("expected 1 PR (warning on ExistingPR error), got %d", count)
@@ -1324,5 +1325,22 @@ func TestResolveBaseBranch_AutoDetect_NoContentsPermission(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not accessible") || !strings.Contains(err.Error(), "contents:read") {
 		t.Errorf("expected error to mention inaccessibility and contents:read permission, got: %v", err)
+	}
+}
+
+func TestCreatePerChartPRs_UpdatePRBodyError(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
+	settings := testSettings()
+	mock := &errMockCreator{existingVal: 42, updateBodyErr: errors.New("permission denied")}
+	updates := []resolvedUpdate{makeUpdate(path, "mychart", "1.0.0", "1.1.0")}
+
+	count := createPerChartPRs(context.Background(), &settings, updates, mock, 10)
+	// UpdatePRBody fails but processing should continue (error is logged, not fatal)
+	if count != 0 {
+		t.Fatalf("expected 0 PRs created (existing PR update attempted), got %d", count)
+	}
+	if mock.updateBodyCall != 1 {
+		t.Fatalf("expected UpdatePRBody to be called once, got %d", mock.updateBodyCall)
 	}
 }
