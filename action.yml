@@ -52,7 +52,8 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install argoiax
+    - name: Download argoiax binary
+      id: download
       shell: bash
       env:
         INPUT_VERSION: ${{ inputs.version }}
@@ -65,14 +66,33 @@ runs:
         esac
 
         if [ "$INPUT_VERSION" = "latest" ]; then
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/szhekpisov/argoiax/releases/latest \
+          DOWNLOAD_URL=$(curl -sf https://api.github.com/repos/szhekpisov/argoiax/releases/latest \
             | grep "browser_download_url.*${OS}_${ARCH}.tar.gz" \
-            | cut -d '"' -f 4)
+            | cut -d '"' -f 4) || true
         else
           DOWNLOAD_URL="https://github.com/szhekpisov/argoiax/releases/download/v${INPUT_VERSION}/argoiax_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
         fi
-        curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin argoiax
-        chmod +x /usr/local/bin/argoiax
+
+        if [ -n "$DOWNLOAD_URL" ] && curl -sfL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin argoiax 2>/dev/null; then
+          chmod +x /usr/local/bin/argoiax
+          echo "installed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "installed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Setup Go
+      if: steps.download.outputs.installed == 'false'
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+
+    - name: Build argoiax from source
+      if: steps.download.outputs.installed == 'false'
+      shell: bash
+      run: |
+        echo "Pre-built binary not available, building from source..."
+        cd "${{ github.action_path }}"
+        go build -o /usr/local/bin/argoiax .
 
     - name: Run argoiax
       id: run
