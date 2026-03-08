@@ -122,6 +122,7 @@ func printDryRun(updates []resolvedUpdate) {
 }
 
 // Package-level function variables to allow overriding in tests.
+// Tests that override these must NOT use t.Parallel().
 var (
 	newGitHubClient = defaultNewGitHubClient
 	scanManifests   = scanRefs

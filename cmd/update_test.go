@@ -1002,6 +1002,8 @@ func TestResolveOneUpdate_WithIntermediateVersions(t *testing.T) {
 
 // newMockGitHubAPI creates a test server that mocks the GitHub API endpoints
 // needed for default branch detection and PR existence checks.
+// ExistingPR always returns true (existing PR found), so the test avoids
+// needing to mock the full PR creation flow (branch, commit, PR endpoints).
 func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -1011,9 +1013,9 @@ func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
 		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == "GET":
 			fmt.Fprintf(w, `{"default_branch": %q}`, defaultBranch)
 		case r.URL.Path == "/repos/testowner/testrepo/pulls" && r.Method == "GET":
-			// Return an existing PR so ExistingPR returns true and no further API calls are needed.
 			fmt.Fprint(w, `[{"number": 1, "html_url": "https://github.com/testowner/testrepo/pull/1"}]`)
 		default:
+			t.Logf("unexpected request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
 		}
 	})
@@ -1021,7 +1023,11 @@ func newMockGitHubAPI(t *testing.T, defaultBranch string) *github.Client {
 	t.Cleanup(server.Close)
 
 	client := github.NewClient(nil)
-	client.BaseURL, _ = url.Parse(server.URL + "/")
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
 	return client
 }
 
@@ -1068,10 +1074,14 @@ func TestResolveBaseBranch_APIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := github.NewClient(nil)
-	client.BaseURL, _ = url.Parse(server.URL + "/")
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
 
 	cfg := config.DefaultConfig()
-	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	err = resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
 	if err == nil {
 		t.Fatal("expected error for API failure")
 	}
@@ -1121,11 +1131,15 @@ func TestCreatePRs_APIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := github.NewClient(nil)
-	client.BaseURL, _ = url.Parse(server.URL + "/")
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parsing mock server URL: %v", err)
+	}
+	client.BaseURL = baseURL
 	overrideGitHubClient(t, client)
 
 	cfg := config.DefaultConfig()
-	err := createPRs(context.Background(), cfg, "fake-token", "testowner", "testrepo", nil, 10)
+	err = createPRs(context.Background(), cfg, "fake-token", "testowner", "testrepo", nil, 10)
 	if err == nil {
 		t.Fatal("expected error for API failure")
 	}
