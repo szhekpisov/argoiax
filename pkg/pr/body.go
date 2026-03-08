@@ -12,6 +12,9 @@ import (
 func RenderPRBody(info *UpdateInfo) string {
 	var b strings.Builder
 
+	// Structured marker for reliable chart name extraction by comment commands.
+	fmt.Fprintf(&b, "<!-- argoiax:chart=%s -->\n", info.ChartName)
+
 	// Opening line (Dependabot style)
 	fmt.Fprintf(&b, "Bumps [%s](%s) from %s to %s.\n", info.ChartName, info.RepoURL, info.OldVersion, info.NewVersion)
 

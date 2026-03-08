@@ -32,14 +32,19 @@ func setEventPath(t *testing.T, path string) {
 }
 
 func prCommentEvent(action, body string, isPR bool) map[string]any {
+	return prCommentEventWithAssoc(action, body, isPR, "COLLABORATOR")
+}
+
+func prCommentEventWithAssoc(action, body string, isPR bool, authorAssociation string) map[string]any {
 	event := map[string]any{
 		"action": action,
 		"issue": map[string]any{
 			"number": 7,
 		},
 		"comment": map[string]any{
-			"id":   42,
-			"body": body,
+			"id":                   42,
+			"body":                 body,
+			"author_association":   authorAssociation,
 		},
 	}
 	if isPR {
@@ -106,6 +111,28 @@ func TestRunComment_NoMention(t *testing.T) {
 	err := runComment(context.Background(), root, "fake-token", "testowner/testrepo")
 	if err != nil {
 		t.Fatalf("expected nil for no mention, got %v", err)
+	}
+}
+
+func TestRunComment_UnauthorizedUser(t *testing.T) {
+	event := prCommentEventWithAssoc("created", "@argoiax rebase", true, "NONE")
+	setEventPath(t, writeEventFile(t, event))
+
+	root := &rootOptions{}
+	err := runComment(context.Background(), root, "fake-token", "testowner/testrepo")
+	if err != nil {
+		t.Fatalf("expected nil for unauthorized user, got %v", err)
+	}
+}
+
+func TestRunComment_ContributorUnauthorized(t *testing.T) {
+	event := prCommentEventWithAssoc("created", "@argoiax recreate", true, "CONTRIBUTOR")
+	setEventPath(t, writeEventFile(t, event))
+
+	root := &rootOptions{}
+	err := runComment(context.Background(), root, "fake-token", "testowner/testrepo")
+	if err != nil {
+		t.Fatalf("expected nil for contributor, got %v", err)
 	}
 }
 

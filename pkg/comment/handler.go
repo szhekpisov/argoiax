@@ -45,7 +45,10 @@ func Rebase(ctx context.Context, ec *EventContext) error {
 	return nil
 }
 
-var chartNameRe = regexp.MustCompile(`^\s*Bumps \[([^\]]+)\]`)
+var (
+	chartMarkerRe = regexp.MustCompile(`<!-- argoiax:chart=(\S+) -->`)
+	chartNameRe   = regexp.MustCompile(`^\s*Bumps \[([^\]]+)\]`)
+)
 
 // CloseAndDeleteBranch closes the PR and deletes its head branch.
 func CloseAndDeleteBranch(ctx context.Context, ec *EventContext) (*ClosedPR, error) {
@@ -80,13 +83,16 @@ func CloseAndDeleteBranch(ctx context.Context, ec *EventContext) (*ClosedPR, err
 }
 
 // extractChartName parses the chart name from a per-chart PR body.
-// Returns empty string for group PRs or unrecognized formats.
+// Prefers the structured <!-- argoiax:chart=NAME --> marker, falling back
+// to the "Bumps [NAME]" line. Returns empty string for group PRs.
 func extractChartName(body string) string {
-	m := chartNameRe.FindStringSubmatch(body)
-	if len(m) < 2 {
-		return ""
+	if m := chartMarkerRe.FindStringSubmatch(body); len(m) >= 2 {
+		return m[1]
 	}
-	return m[1]
+	if m := chartNameRe.FindStringSubmatch(body); len(m) >= 2 {
+		return m[1]
+	}
+	return ""
 }
 
 // ReplyUnknownCommand adds a "confused" reaction and posts a comment listing

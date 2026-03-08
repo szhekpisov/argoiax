@@ -18,6 +18,9 @@ func TestRenderPRBody_Basic(t *testing.T) {
 
 	body := RenderPRBody(&info)
 
+	if !strings.Contains(body, "<!-- argoiax:chart=cert-manager -->") {
+		t.Error("expected chart marker comment")
+	}
 	if !strings.Contains(body, "Bumps [cert-manager](https://charts.jetstack.io) from 1.13.2 to 1.14.1.") {
 		t.Error("expected Dependabot-style opening line")
 	}

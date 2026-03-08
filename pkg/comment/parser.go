@@ -59,13 +59,17 @@ func parseLine(line string) *Command {
 	}
 }
 
+func isFenceDelimiter(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
+}
+
 func stripFencedCodeBlocks(s string) string {
 	var result strings.Builder
 	lines := strings.Split(s, "\n")
 	inFence := false
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
+		if isFenceDelimiter(line) {
 			inFence = !inFence
 			continue
 		}
@@ -79,14 +83,45 @@ func stripFencedCodeBlocks(s string) string {
 
 func stripInlineCode(s string) string {
 	var result strings.Builder
-	inCode := false
-	for _, r := range s {
-		if r == '`' {
-			inCode = !inCode
-			continue
-		}
-		if !inCode {
-			result.WriteRune(r)
+	runes := []rune(s)
+	i := 0
+	for i < len(runes) {
+		if runes[i] == '`' {
+			// Count consecutive backticks to find the delimiter length.
+			delimLen := 0
+			for i+delimLen < len(runes) && runes[i+delimLen] == '`' {
+				delimLen++
+			}
+			// Search for a matching closing delimiter of the same length.
+			j := i + delimLen
+			found := false
+			for j <= len(runes)-delimLen {
+				if runes[j] == '`' {
+					closeLen := 0
+					for j+closeLen < len(runes) && runes[j+closeLen] == '`' {
+						closeLen++
+					}
+					if closeLen == delimLen {
+						// Skip past the closing delimiter.
+						i = j + closeLen
+						found = true
+						break
+					}
+					j += closeLen
+				} else {
+					j++
+				}
+			}
+			if !found {
+				// No matching closer — emit the backticks as literal text.
+				for k := 0; k < delimLen; k++ {
+					result.WriteRune('`')
+				}
+				i += delimLen
+			}
+		} else {
+			result.WriteRune(runes[i])
+			i++
 		}
 	}
 	return result.String()

@@ -83,6 +83,26 @@ func TestParse(t *testing.T) {
 			body:    "@argoiax rebase --force",
 			wantCmd: &Command{Name: "rebase", Args: []string{"--force"}},
 		},
+		{
+			name:    "inside tilde fenced code block",
+			body:    "~~~\n@argoiax rebase\n~~~",
+			wantCmd: nil,
+		},
+		{
+			name:    "tilde fence then real command",
+			body:    "~~~\n@argoiax rebase\n~~~\n@argoiax recreate",
+			wantCmd: &Command{Name: "recreate"},
+		},
+		{
+			name:    "inside double backtick inline code",
+			body:    "Use ``@argoiax rebase`` to rebase",
+			wantCmd: nil,
+		},
+		{
+			name:    "double backtick then real command",
+			body:    "Use ``@argoiax rebase`` or:\n@argoiax recreate",
+			wantCmd: &Command{Name: "recreate"},
+		},
 	}
 
 	for _, tt := range tests {

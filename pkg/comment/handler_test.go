@@ -230,6 +230,16 @@ func TestExtractChartName(t *testing.T) {
 			body: "Bumps [cert-manager](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
 			want: "cert-manager",
 		},
+		{
+			name: "structured marker",
+			body: "<!-- argoiax:chart=mychart -->\nBumps [mychart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
+			want: "mychart",
+		},
+		{
+			name: "structured marker takes precedence",
+			body: "<!-- argoiax:chart=real-chart -->\nBumps [wrong-chart](https://charts.example.com) from 1.0.0 to 1.2.0.\n",
+			want: "real-chart",
+		},
 	}
 
 	for _, tt := range tests {

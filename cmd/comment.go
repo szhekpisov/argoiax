@@ -14,6 +14,17 @@ import (
 	"github.com/szhekpisov/argoiax/pkg/comment"
 )
 
+// writeAccessAssociations are the GitHub author associations that indicate write access.
+var writeAccessAssociations = map[string]bool{
+	"OWNER":        true,
+	"MEMBER":       true,
+	"COLLABORATOR": true,
+}
+
+func hasWriteAccess(association string) bool {
+	return writeAccessAssociations[association]
+}
+
 func newCommentCmd(root *rootOptions) *cobra.Command {
 	var (
 		githubToken string
@@ -63,6 +74,14 @@ func runComment(ctx context.Context, root *rootOptions, githubToken, repoSlug st
 
 	cmd := comment.Parse(event.Comment.GetBody())
 	if cmd == nil {
+		return nil
+	}
+
+	// Only allow users with write access (OWNER, MEMBER, COLLABORATOR) to run commands.
+	if !hasWriteAccess(event.Comment.GetAuthorAssociation()) {
+		slog.Info("ignoring command from user without write access",
+			"author_association", event.Comment.GetAuthorAssociation(),
+			"pr", event.Issue.GetNumber())
 		return nil
 	}
 
