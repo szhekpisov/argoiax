@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -48,14 +49,16 @@ type Fetcher interface {
 
 // GitHubRepo identifies a GitHub repository.
 type GitHubRepo struct {
-	Owner string
-	Repo  string
+	Owner     string
+	Repo      string
+	ChartName string
 }
 
 // Orchestrator coordinates multiple release note sources with fallback.
 type Orchestrator struct {
 	fetchers []Fetcher
 	cfg      config.ReleaseNotesConfig
+	client   *http.Client
 }
 
 // NewOrchestrator creates a new release notes orchestrator with a shared HTTP client.
@@ -82,6 +85,7 @@ func NewOrchestrator(cfg config.ReleaseNotesConfig, githubToken string) *Orchest
 	return &Orchestrator{
 		fetchers: fetchers,
 		cfg:      cfg,
+		client:   client,
 	}
 }
 
@@ -97,8 +101,16 @@ func (o *Orchestrator) FetchNotes(ctx context.Context, chartName, repoURL string
 
 	repo := MapChartToRepo(chartName, repoURL, chartCfg)
 	if repo.Owner == "" || repo.Repo == "" {
-		slog.Debug("could not map chart to GitHub repo", "chart", chartName, "repoURL", repoURL)
-		return nil
+		if slices.Contains(o.cfg.Sources, config.SourceArtifactHub) && o.client != nil {
+			if discovered := discoverRepoFromArtifactHub(ctx, o.client, chartName); discovered.Owner != "" {
+				repo.Owner = discovered.Owner
+				repo.Repo = discovered.Repo
+				slog.Debug("discovered GitHub repo from ArtifactHub", "chart", chartName, "owner", repo.Owner, "repo", repo.Repo)
+			}
+		}
+		if repo.Owner == "" || repo.Repo == "" {
+			slog.Debug("could not map chart to GitHub repo, trying non-GitHub sources", "chart", chartName, "repoURL", repoURL)
+		}
 	}
 
 	for _, f := range o.fetchers {

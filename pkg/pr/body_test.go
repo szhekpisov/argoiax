@@ -257,6 +257,101 @@ func TestRenderGroupPRBody_BreakingChanges(t *testing.T) {
 	}
 }
 
+func TestRenderPRBody_DatadogReleaseNotes(t *testing.T) {
+	// Simulates the Datadog scenario: chart from helm.datadoghq.com,
+	// GitHub repo discovered via ArtifactHub content_url → DataDog/helm-charts.
+	info := UpdateInfo{
+		ChartName:  "datadog",
+		RepoURL:    "https://helm.datadoghq.com",
+		OldVersion: "3.180.0",
+		NewVersion: "3.181.1",
+		ReleaseNotes: &releasenotes.Notes{
+			Entries: []releasenotes.Entry{
+				{
+					Version: "3.181.1",
+					Body:    "## What's Changed\n* Bump Datadog Agent to 7.62.1\n* Fix APM socket path",
+					URL:     "https://github.com/DataDog/helm-charts/releases/tag/datadog-3.181.1",
+				},
+				{
+					Version: "3.181.0",
+					Body:    "## What's Changed\n* Add Windows container support",
+					URL:     "https://github.com/DataDog/helm-charts/releases/tag/datadog-3.181.0",
+				},
+			},
+			SourceURL: "https://github.com/DataDog/helm-charts/releases",
+		},
+	}
+
+	body := RenderPRBody(&info)
+
+	checks := []struct {
+		desc    string
+		substr  string
+		present bool
+	}{
+		{"opening line", "Bumps [datadog](https://helm.datadoghq.com) from 3.180.0 to 3.181.1", true},
+		{"collapsible section", "<details>", true},
+		{"release notes summary", "<summary>Release notes</summary>", true},
+		{"source link", `<a href="https://github.com/DataDog/helm-charts/releases">datadog's releases</a>`, true},
+		{"version header 3.181.1", "<h2>3.181.1</h2>", true},
+		{"version header 3.181.0", "<h2>3.181.0</h2>", true},
+		{"agent bump note", "Bump Datadog Agent to 7.62.1", true},
+		{"APM fix note", "Fix APM socket path", true},
+		{"Windows note", "Add Windows container support", true},
+		{"blockquote wrapper", "<blockquote>", true},
+		{"closing details", "</details>", true},
+	}
+	for _, c := range checks {
+		if got := strings.Contains(body, c.substr); got != c.present {
+			t.Errorf("%s: Contains(%q) = %v, want %v\nbody:\n%s", c.desc, c.substr, got, c.present, body)
+		}
+	}
+}
+
+func TestRenderPRBody_KubernetesAutoscalerReleaseNotes(t *testing.T) {
+	// Simulates the Kubernetes autoscaler scenario: chart from
+	// kubernetes.github.io/autoscaler, mapped to kubernetes/autoscaler,
+	// tag pattern cluster-autoscaler-chart-9.46.0.
+	info := UpdateInfo{
+		ChartName:  "cluster-autoscaler",
+		RepoURL:    "https://kubernetes.github.io/autoscaler",
+		OldVersion: "9.43.2",
+		NewVersion: "9.46.0",
+		ReleaseNotes: &releasenotes.Notes{
+			Entries: []releasenotes.Entry{
+				{
+					Version: "9.46.0",
+					Body:    "## What's Changed\n* Bump cluster-autoscaler to 1.32.0\n* Update GKE defaults",
+					URL:     "https://github.com/kubernetes/autoscaler/releases/tag/cluster-autoscaler-chart-9.46.0",
+				},
+			},
+			SourceURL: "https://github.com/kubernetes/autoscaler/releases",
+		},
+	}
+
+	body := RenderPRBody(&info)
+
+	checks := []struct {
+		desc    string
+		substr  string
+		present bool
+	}{
+		{"opening line", "Bumps [cluster-autoscaler](https://kubernetes.github.io/autoscaler) from 9.43.2 to 9.46.0", true},
+		{"collapsible section", "<details>", true},
+		{"release notes summary", "<summary>Release notes</summary>", true},
+		{"source link", `<a href="https://github.com/kubernetes/autoscaler/releases">cluster-autoscaler's releases</a>`, true},
+		{"version header", "<h2>9.46.0</h2>", true},
+		{"autoscaler bump note", "Bump cluster-autoscaler to 1.32.0", true},
+		{"GKE defaults note", "Update GKE defaults", true},
+		{"blockquote wrapper", "<blockquote>", true},
+	}
+	for _, c := range checks {
+		if got := strings.Contains(body, c.substr); got != c.present {
+			t.Errorf("%s: Contains(%q) = %v, want %v\nbody:\n%s", c.desc, c.substr, got, c.present, body)
+		}
+	}
+}
+
 func TestRenderGroupPRBody_MixedReleaseNotes(t *testing.T) {
 	group := UpdateGroup{
 		Updates: []UpdateInfo{

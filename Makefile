@@ -18,6 +18,7 @@ test:
 	go test -race -count=1 ./...
 
 lint:
+	@which golangci-lint > /dev/null 2>&1 || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	golangci-lint run ./...
 
 ci: lint test

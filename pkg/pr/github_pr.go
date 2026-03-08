@@ -179,14 +179,28 @@ func (g *GitHubCreator) deleteBranch(ctx context.Context, branch string) {
 	}
 }
 
-// ExistingPR checks if an open PR already exists for the given branch.
-func (g *GitHubCreator) ExistingPR(ctx context.Context, branch string) (bool, error) {
+// ExistingPR returns the PR number if an open PR exists for the given branch, or 0 if none.
+func (g *GitHubCreator) ExistingPR(ctx context.Context, branch string) (int, error) {
 	prs, _, err := g.client.PullRequests.List(ctx, g.owner, g.repo, &github.PullRequestListOptions{
 		Head:  fmt.Sprintf("%s:%s", g.owner, branch),
 		State: "open",
 	})
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	return len(prs) > 0, nil
+	if len(prs) > 0 {
+		return prs[0].GetNumber(), nil
+	}
+	return 0, nil
+}
+
+// UpdatePRBody updates the body of an existing PR.
+func (g *GitHubCreator) UpdatePRBody(ctx context.Context, prNumber int, body string) error {
+	_, _, err := g.client.PullRequests.Edit(ctx, g.owner, g.repo, prNumber, &github.PullRequest{
+		Body: &body,
+	})
+	if err != nil {
+		return fmt.Errorf("updating PR #%d body: %w", prNumber, err)
+	}
+	return nil
 }

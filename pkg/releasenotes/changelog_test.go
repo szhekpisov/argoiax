@@ -235,6 +235,18 @@ func TestExtractVersionSection_HeaderNoNewline(t *testing.T) {
 	}
 }
 
+func TestChangelogFetcher_Fetch_NoRepoMapping(t *testing.T) {
+	f := NewChangelogFetcher(nil)
+
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{ChartName: "datadog"}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for empty Owner/Repo, got %d", len(entries))
+	}
+}
+
 func TestChangelogFetcher_Fetch_ConnectionError(t *testing.T) {
 	client := newRewriteClient("http://127.0.0.1:1", "https://raw.githubusercontent.com")
 	f := NewChangelogFetcher(client)

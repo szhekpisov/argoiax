@@ -28,6 +28,10 @@ func (f *GitHubFetcher) Name() string { return config.SourceGitHubReleases }
 
 // Fetch retrieves release notes from GitHub Releases for the given versions.
 func (f *GitHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
+	if repo.Owner == "" || repo.Repo == "" {
+		return nil, "", nil
+	}
+
 	var entries []Entry
 	sourceURL := fmt.Sprintf("https://github.com/%s/%s/releases", repo.Owner, repo.Repo)
 
@@ -50,7 +54,10 @@ func (f *GitHubFetcher) fetchRelease(ctx context.Context, repo GitHubRepo, versi
 	tagPatterns := []string{
 		version,
 		"v" + version,
+		fmt.Sprintf("%s-%s", repo.ChartName, version),
+		fmt.Sprintf("%s-chart-%s", repo.ChartName, version),
 		fmt.Sprintf("%s-%s", repo.Repo, version),
+		"helm-v" + version,
 	}
 
 	for _, tag := range tagPatterns {

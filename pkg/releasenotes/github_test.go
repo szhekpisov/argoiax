@@ -61,6 +61,107 @@ func TestGitHubFetcher_Fetch_Success(t *testing.T) {
 	}
 }
 
+func TestGitHubFetcher_Fetch_ChartNameTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only respond to the chart-name tag pattern
+		if r.URL.Path == "/repos/prometheus-community/helm-charts/releases/tags/kube-prometheus-stack-70.4.1" {
+			_ = json.NewEncoder(w).Encode(githubRelease{
+				TagName: "kube-prometheus-stack-70.4.1",
+				Body:    "release notes for kube-prometheus-stack 70.4.1",
+				HTMLURL: "https://github.com/prometheus-community/helm-charts/releases/tag/kube-prometheus-stack-70.4.1",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{
+		Owner:     "prometheus-community",
+		Repo:      "helm-charts",
+		ChartName: "kube-prometheus-stack",
+	}, []string{"70.4.1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry via chart-name tag pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "70.4.1" {
+		t.Errorf("entries[0].Version = %q, want %q", entries[0].Version, "70.4.1")
+	}
+}
+
+func TestGitHubFetcher_Fetch_ChartSuffixedTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only respond to the {chartName}-chart-{version} pattern
+		if r.URL.Path == "/repos/kubernetes/autoscaler/releases/tags/cluster-autoscaler-chart-9.46.0" {
+			_ = json.NewEncoder(w).Encode(githubRelease{
+				TagName: "cluster-autoscaler-chart-9.46.0",
+				Body:    "## What's Changed\n* Bump cluster-autoscaler to 1.32.0",
+				HTMLURL: "https://github.com/kubernetes/autoscaler/releases/tag/cluster-autoscaler-chart-9.46.0",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{
+		Owner:     "kubernetes",
+		Repo:      "autoscaler",
+		ChartName: "cluster-autoscaler",
+	}, []string{"9.46.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry via chart-suffixed tag pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "9.46.0" {
+		t.Errorf("Version = %q, want %q", entries[0].Version, "9.46.0")
+	}
+	if entries[0].Body != "## What's Changed\n* Bump cluster-autoscaler to 1.32.0" {
+		t.Errorf("Body = %q", entries[0].Body)
+	}
+}
+
+func TestGitHubFetcher_Fetch_HelmVTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/bitnami-labs/sealed-secrets/releases/tags/helm-v2.18.3" {
+			_ = json.NewEncoder(w).Encode(githubRelease{
+				TagName: "helm-v2.18.3",
+				Body:    "## What's Changed\n* Update sealed-secrets to 0.29.0",
+				HTMLURL: "https://github.com/bitnami-labs/sealed-secrets/releases/tag/helm-v2.18.3",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://api.github.com")
+	f := NewGitHubFetcher(client)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{
+		Owner:     "bitnami-labs",
+		Repo:      "sealed-secrets",
+		ChartName: "sealed-secrets",
+	}, []string{"2.18.3"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry via helm-v tag pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "2.18.3" {
+		t.Errorf("Version = %q, want %q", entries[0].Version, "2.18.3")
+	}
+}
+
 func TestGitHubFetcher_Fetch_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)
@@ -111,6 +212,17 @@ func TestGitHubFetcher_Fetch_InvalidJSON(t *testing.T) {
 	// JSON decode error is treated as a fetch failure, so no entries
 	if len(entries) != 0 {
 		t.Errorf("expected 0 entries on invalid JSON, got %d", len(entries))
+	}
+}
+
+func TestGitHubFetcher_Fetch_NoRepoMapping(t *testing.T) {
+	f := NewGitHubFetcher(nil)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{ChartName: "datadog"}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for empty Owner/Repo, got %d", len(entries))
 	}
 }
 

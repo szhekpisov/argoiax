@@ -29,8 +29,10 @@ func (f *ArtifactHubFetcher) Name() string { return config.SourceArtifactHub }
 
 // Fetch retrieves release notes from ArtifactHub for the given versions.
 func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
-	// ArtifactHub uses repository-name/chart-name format.
-	// We try to derive a reasonable package path.
+	if repo.ChartName == "" {
+		return nil, "", nil
+	}
+
 	var entries []Entry
 	sourceURL := ""
 
@@ -51,9 +53,10 @@ func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, version
 }
 
 type artifactHubPackage struct {
-	Version string              `json:"version"`
-	Changes []artifactHubChange `json:"changes"`
-	HTMLURL string              `json:"package_id"`
+	Version    string              `json:"version"`
+	Changes    []artifactHubChange `json:"changes"`
+	HTMLURL    string              `json:"package_id"`
+	ContentURL string              `json:"content_url"`
 }
 
 type artifactHubChange struct {
@@ -62,10 +65,26 @@ type artifactHubChange struct {
 }
 
 func (f *ArtifactHubFetcher) fetchVersion(ctx context.Context, repo GitHubRepo, version string) (*Entry, string, error) {
-	// Try common ArtifactHub repo/package patterns
-	patterns := []string{
-		fmt.Sprintf("helm/%s/%s", repo.Repo, repo.Repo),
-		fmt.Sprintf("helm/%s/%s", repo.Owner, repo.Repo),
+	// Try common ArtifactHub repo/package patterns.
+	// ArtifactHub URLs are helm/{artifacthub-repo}/{chart-name}.
+	// The ArtifactHub repo name often matches the chart name or the GitHub owner.
+	seen := make(map[string]bool)
+	var patterns []string
+	addPattern := func(repoName, chartName string) {
+		p := fmt.Sprintf("helm/%s/%s", repoName, chartName)
+		if !seen[p] {
+			seen[p] = true
+			patterns = append(patterns, p)
+		}
+	}
+
+	chartName := repo.ChartName
+	addPattern(chartName, chartName)
+	if repo.Owner != "" {
+		addPattern(repo.Owner, chartName)
+	}
+	if repo.Repo != "" {
+		addPattern(repo.Repo, chartName)
 	}
 
 	for _, pkg := range patterns {
@@ -123,4 +142,41 @@ func (f *ArtifactHubFetcher) tryPackage(ctx context.Context, pkg, version string
 		Body:    body.String(),
 		URL:     pageURL,
 	}, pageURL, nil
+}
+
+// discoverRepoFromArtifactHub queries the ArtifactHub unversioned package endpoint
+// and extracts the GitHub owner/repo from the content_url field.
+func discoverRepoFromArtifactHub(ctx context.Context, client *http.Client, chartName string) GitHubRepo {
+	url := fmt.Sprintf("https://artifacthub.io/api/v1/packages/helm/%s/%s", chartName, chartName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return GitHubRepo{}
+	}
+
+	resp, err := client.Do(req) //nolint:bodyclose // closed via registry.DrainBody
+	if err != nil {
+		return GitHubRepo{}
+	}
+	defer registry.DrainBody(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return GitHubRepo{}
+	}
+
+	var ahPkg artifactHubPackage
+	if err := json.NewDecoder(resp.Body).Decode(&ahPkg); err != nil {
+		return GitHubRepo{}
+	}
+
+	if !strings.Contains(ahPkg.ContentURL, "github.com/") {
+		return GitHubRepo{}
+	}
+
+	owner, repo := registry.ExtractGitHubOwnerRepo(ahPkg.ContentURL)
+	if owner == "" || repo == "" {
+		return GitHubRepo{}
+	}
+
+	return GitHubRepo{Owner: owner, Repo: repo, ChartName: chartName}
 }

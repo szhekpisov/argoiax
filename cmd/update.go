@@ -180,6 +180,15 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 	}
 
 	cfg.Settings.BaseBranch = branch
+
+	exists, err := branchExists(ctx, ghClient, owner, repo, branch)
+	if err != nil {
+		return fmt.Errorf("checking default branch %q: %w", branch, err)
+	}
+	if !exists {
+		return fmt.Errorf("default branch %q exists in %s/%s but is not accessible; ensure the token has contents:read permission", branch, owner, repo)
+	}
+
 	slog.Info("detected default branch", "branch", cfg.Settings.BaseBranch)
 	return nil
 }
@@ -310,12 +319,17 @@ func createPerChartPRs(ctx context.Context, settings *config.Settings, updates [
 			slog.Error("failed to render branch template", "chart", updates[i].info.ChartName, "error", err)
 			continue
 		}
-		exists, err := prCreator.ExistingPR(ctx, branch)
+		existingPR, err := prCreator.ExistingPR(ctx, branch)
 		if err != nil {
 			slog.Warn("error checking existing PR", "chart", updates[i].info.ChartName, "error", err)
 		}
-		if exists {
-			slog.Info("PR already exists, skipping", "chart", updates[i].info.ChartName, "branch", branch)
+		if existingPR > 0 {
+			body := pr.RenderPRBody(&updates[i].info)
+			if err := prCreator.UpdatePRBody(ctx, existingPR, body); err != nil {
+				slog.Error("failed to update existing PR", "chart", updates[i].info.ChartName, "error", err)
+			} else {
+				slog.Info("updated existing PR", "chart", updates[i].info.ChartName, "pr", existingPR)
+			}
 			continue
 		}
 
@@ -404,12 +418,17 @@ func createPerFilePRs(ctx context.Context, settings *config.Settings, updates []
 			continue
 		}
 
-		exists, err := prCreator.ExistingPR(ctx, branch)
+		existingPR, err := prCreator.ExistingPR(ctx, branch)
 		if err != nil {
 			slog.Warn("error checking existing PR", "file", filePath, "error", err)
 		}
-		if exists {
-			slog.Info("PR already exists, skipping", "file", filePath, "branch", branch)
+		if existingPR > 0 {
+			body := pr.RenderGroupPRBody(group)
+			if err := prCreator.UpdatePRBody(ctx, existingPR, body); err != nil {
+				slog.Error("failed to update existing PR", "file", filePath, "error", err)
+			} else {
+				slog.Info("updated existing PR", "file", filePath, "pr", existingPR)
+			}
 			continue
 		}
 
@@ -452,12 +471,17 @@ func createBatchPR(ctx context.Context, settings *config.Settings, updates []res
 		return 0, fmt.Errorf("rendering group branch template: %w", err)
 	}
 
-	exists, err := prCreator.ExistingPR(ctx, branch)
+	existingPR, err := prCreator.ExistingPR(ctx, branch)
 	if err != nil {
 		slog.Warn("error checking existing PR", "error", err)
 	}
-	if exists {
-		slog.Info("batch PR already exists, skipping", "branch", branch)
+	if existingPR > 0 {
+		body := pr.RenderGroupPRBody(group)
+		if err := prCreator.UpdatePRBody(ctx, existingPR, body); err != nil {
+			slog.Error("failed to update existing batch PR", "error", err)
+		} else {
+			slog.Info("updated existing batch PR", "pr", existingPR)
+		}
 		return 0, nil
 	}
 

@@ -37,7 +37,7 @@ func TestArtifactHubFetcher_Fetch_Success(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.2.0"})
+	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.2.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestArtifactHubFetcher_Fetch_NotFound(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"9.9.9"})
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"9.9.9"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestArtifactHubFetcher_Fetch_NoChanges(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.0.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestArtifactHubFetcher_Fetch_InvalidJSON(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.0.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestArtifactHubFetcher_Fetch_ConnectionError(t *testing.T) {
 	client := newRewriteClient("http://127.0.0.1:1", "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.0.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestArtifactHubFetcher_Fetch_SecondPatternMatch(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0"})
+	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.0.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestArtifactHubFetcher_Fetch_MultipleVersions(t *testing.T) {
 	client := newRewriteClient(server.URL, "https://artifacthub.io")
 	f := NewArtifactHubFetcher(client)
 
-	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo"}, []string{"1.0.0", "1.1.0"})
+	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{Owner: "myorg", Repo: "myrepo", ChartName: "myrepo"}, []string{"1.0.0", "1.1.0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,5 +199,170 @@ func TestArtifactHubFetcher_Fetch_MultipleVersions(t *testing.T) {
 	// sourceURL should be set from the first successful entry
 	if sourceURL == "" {
 		t.Error("expected non-empty sourceURL")
+	}
+}
+
+func TestArtifactHubFetcher_Fetch_NoGitHubMapping(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only the chart-name self-pattern should be tried
+		if r.URL.Path == "/api/v1/packages/helm/datadog/datadog/3.80.0" {
+			_ = json.NewEncoder(w).Encode(artifactHubPackage{
+				Version: "3.80.0",
+				Changes: []artifactHubChange{
+					{Kind: "added", Description: "New dashboard"},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	f := NewArtifactHubFetcher(client)
+
+	// No Owner/Repo — only ChartName is set (simulates unmapped repo like helm.datadoghq.com)
+	entries, sourceURL, err := f.Fetch(context.Background(), GitHubRepo{ChartName: "datadog"}, []string{"3.80.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry from chart-name pattern, got %d", len(entries))
+	}
+	if entries[0].Version != "3.80.0" {
+		t.Errorf("version = %q, want %q", entries[0].Version, "3.80.0")
+	}
+	if sourceURL == "" {
+		t.Error("expected non-empty sourceURL")
+	}
+}
+
+func TestArtifactHubFetcher_Fetch_EmptyChartName(t *testing.T) {
+	f := NewArtifactHubFetcher(nil)
+
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for empty ChartName, got %d", len(entries))
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/packages/helm/datadog/datadog" {
+			_ = json.NewEncoder(w).Encode(artifactHubPackage{
+				ContentURL: "https://github.com/DataDog/helm-charts/releases/download/datadog-3.181.1/datadog-3.181.1.tgz",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "datadog")
+
+	if got.Owner != "DataDog" {
+		t.Errorf("Owner = %q, want %q", got.Owner, "DataDog")
+	}
+	if got.Repo != "helm-charts" {
+		t.Errorf("Repo = %q, want %q", got.Repo, "helm-charts")
+	}
+	if got.ChartName != "datadog" {
+		t.Errorf("ChartName = %q, want %q", got.ChartName, "datadog")
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_NonGitHub(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(artifactHubPackage{
+			ContentURL: "https://charts.example.com/packages/mychart-1.0.0.tgz",
+		})
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for non-GitHub URL, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.NotFound(w, nil)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "nonexistent")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for 404, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_ConnectionError(t *testing.T) {
+	client := newRewriteClient("http://127.0.0.1:1", "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo on connection error, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{invalid"))
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo on invalid JSON, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_GitHubShortPath(t *testing.T) {
+	// content_url is a GitHub URL but with only one path segment (no repo)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(artifactHubPackage{
+			ContentURL: "https://github.com/orgonly",
+		})
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for short GitHub path, got %+v", got)
+	}
+}
+
+func TestTryPackage_InvalidURL(t *testing.T) {
+	f := NewArtifactHubFetcher(&http.Client{})
+	// Control character in package path makes URL unparseable
+	entry, _, err := f.tryPackage(context.Background(), "helm/\x7f/\x7f", "1.0.0")
+	if err == nil {
+		t.Error("expected error for invalid URL")
+	}
+	if entry != nil {
+		t.Error("expected nil entry for invalid URL")
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_InvalidURL(t *testing.T) {
+	// Control character in chart name makes URL unparseable
+	got := discoverRepoFromArtifactHub(context.Background(), &http.Client{}, "\x7f")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for invalid URL, got %+v", got)
 	}
 }

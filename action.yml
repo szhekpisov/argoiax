@@ -36,10 +36,6 @@ inputs:
     description: 'Log level (debug, info, warn, error)'
     required: false
     default: 'info'
-  version:
-    description: 'argoiax version to use (default: latest)'
-    required: false
-    default: 'latest'
 
 outputs:
   updates-found:
@@ -52,27 +48,49 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install argoiax
+    - name: Detect install method
+      id: detect
       shell: bash
       env:
-        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
       run: |
+        if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "method=download" >> "$GITHUB_OUTPUT"
+        else
+          echo "method=build" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download argoiax binary
+      if: steps.detect.outputs.method == 'download'
+      shell: bash
+      env:
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        VERSION="${ACTION_REF#v}"
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64) ARCH="amd64" ;;
           aarch64|arm64) ARCH="arm64" ;;
         esac
-
-        if [ "$INPUT_VERSION" = "latest" ]; then
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/szhekpisov/argoiax/releases/latest \
-            | grep "browser_download_url.*${OS}_${ARCH}.tar.gz" \
-            | cut -d '"' -f 4)
-        else
-          DOWNLOAD_URL="https://github.com/szhekpisov/argoiax/releases/download/v${INPUT_VERSION}/argoiax_${INPUT_VERSION}_${OS}_${ARCH}.tar.gz"
-        fi
-        curl -sL "$DOWNLOAD_URL" | tar xz -C /usr/local/bin argoiax
+        curl -sfL "https://github.com/szhekpisov/argoiax/releases/download/${ACTION_REF}/argoiax_${VERSION}_${OS}_${ARCH}.tar.gz" \
+          | tar xz -C /usr/local/bin argoiax
         chmod +x /usr/local/bin/argoiax
+
+    - name: Setup Go
+      if: steps.detect.outputs.method == 'build'
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+
+    - name: Build argoiax from source
+      if: steps.detect.outputs.method == 'build'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        cd "$ACTION_PATH"
+        go build -o /usr/local/bin/argoiax .
 
     - name: Run argoiax
       id: run

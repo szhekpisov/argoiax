@@ -60,8 +60,11 @@ type Creator interface {
 	// CreateGroupPR creates a pull request for a group of chart updates.
 	CreateGroupPR(ctx context.Context, group UpdateGroup, baseBranch string) (*Result, error)
 
-	// ExistingPR checks if a PR already exists for this update.
-	ExistingPR(ctx context.Context, branch string) (bool, error)
+	// ExistingPR returns the PR number if an open PR exists for the branch, or 0 if none.
+	ExistingPR(ctx context.Context, branch string) (int, error)
+
+	// UpdatePRBody updates the body of an existing PR.
+	UpdatePRBody(ctx context.Context, prNumber int, body string) error
 }
 
 // NewGroupTemplateData builds GroupTemplateData from an UpdateGroup.

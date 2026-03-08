@@ -2,7 +2,10 @@ package releasenotes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/szhekpisov/argoiax/pkg/config"
@@ -174,6 +177,32 @@ func (f *stubFetcher) Fetch(_ context.Context, _ GitHubRepo, _ []string) ([]Entr
 }
 func (f *stubFetcher) Name() string { return f.name }
 
+type captureFetcher struct {
+	entries []Entry
+	url     string
+	calls   *[]struct{ repo GitHubRepo }
+}
+
+func (f *captureFetcher) Fetch(_ context.Context, repo GitHubRepo, _ []string) ([]Entry, string, error) {
+	*f.calls = append(*f.calls, struct{ repo GitHubRepo }{repo: repo})
+	return f.entries, f.url, nil
+}
+
+func (f *captureFetcher) Name() string { return "capture" }
+
+func newDiscoveryServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/packages/helm/datadog/datadog" {
+			_ = json.NewEncoder(w).Encode(artifactHubPackage{
+				ContentURL: "https://github.com/DataDog/helm-charts/releases/download/datadog-3.181.1/datadog-3.181.1.tgz",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+}
+
 func TestOrchestrator_FetchNotes_FetcherError(t *testing.T) {
 	o := &Orchestrator{
 		cfg: config.ReleaseNotesConfig{Enabled: true, MaxLength: 0},
@@ -214,6 +243,45 @@ func TestOrchestrator_FetchNotes_AllFetchersEmpty(t *testing.T) {
 	got := o.FetchNotes(context.Background(), "chart", "https://grafana.github.io/helm-charts", []string{"1.0.0"}, nil)
 	if got != nil {
 		t.Errorf("expected nil when all fetchers return empty, got %+v", got)
+	}
+}
+
+func TestOrchestrator_FetchNotes_DiscoverRepo(t *testing.T) {
+	var calls []struct{ repo GitHubRepo }
+
+	capturingFetcher := &captureFetcher{
+		entries: []Entry{{Version: "3.181.1", Body: "release notes"}},
+		url:     "https://github.com/DataDog/helm-charts/releases/tag/datadog-3.181.1",
+		calls:   &calls,
+	}
+
+	o := &Orchestrator{
+		cfg: config.ReleaseNotesConfig{
+			Enabled: true,
+			Sources: []string{config.SourceArtifactHub, config.SourceGitHubReleases},
+		},
+		fetchers: []Fetcher{capturingFetcher},
+	}
+
+	// Set up ArtifactHub mock that returns content_url with GitHub URL
+	server := newDiscoveryServer(t)
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	o.client = client
+
+	got := o.FetchNotes(context.Background(), "datadog", "https://helm.datadoghq.com", []string{"3.181.1"}, nil)
+	if got == nil {
+		t.Fatal("expected non-nil notes")
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 fetcher call, got %d", len(calls))
+	}
+	if calls[0].repo.Owner != "DataDog" {
+		t.Errorf("expected Owner=DataDog, got %q", calls[0].repo.Owner)
+	}
+	if calls[0].repo.Repo != "helm-charts" {
+		t.Errorf("expected Repo=helm-charts, got %q", calls[0].repo.Repo)
 	}
 }
 

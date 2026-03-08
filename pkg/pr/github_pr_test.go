@@ -54,16 +54,16 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	// CreatePullRequest — return PR
-	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, _ *http.Request) {
-		pr := &github.PullRequest{
+	// CreatePullRequest / EditPullRequest — return PR
+	prHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(&github.PullRequest{
 			Number:  new(42),
 			HTMLURL: new("https://github.com/owner/repo/pull/42"),
-		}
-		w.WriteHeader(http.StatusCreated)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(pr)
-	})
+		})
+	}
+	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", prHandler)
+	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", prHandler)
 
 	// AddLabelsToIssue — accept labels
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/issues/{issue}/labels", func(w http.ResponseWriter, _ *http.Request) {
@@ -224,20 +224,51 @@ func TestExistingPR(t *testing.T) {
 	client := newTestGitHubServer(t)
 	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
 
-	exists, err := creator.ExistingPR(context.Background(), "existing-branch")
+	prNum, err := creator.ExistingPR(context.Background(), "existing-branch")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !exists {
+	if prNum == 0 {
 		t.Error("expected existing PR to be found")
 	}
 
-	exists, err = creator.ExistingPR(context.Background(), "new-branch")
+	prNum, err = creator.ExistingPR(context.Background(), "new-branch")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if exists {
+	if prNum != 0 {
 		t.Error("expected no existing PR")
+	}
+}
+
+func TestUpdatePRBody(t *testing.T) {
+	client := newTestGitHubServer(t)
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
+
+	err := creator.UpdatePRBody(context.Background(), 42, "updated body text")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpdatePRBody_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := github.NewClient(nil)
+	client, _ = client.WithEnterpriseURLs(srv.URL, srv.URL)
+
+	creator := NewGitHubCreator(client, "owner", "repo", &config.Settings{})
+	err := creator.UpdatePRBody(context.Background(), 42, "body")
+	if err == nil {
+		t.Fatal("expected error on 422 response")
+	}
+	if !strings.Contains(err.Error(), "updating PR #42") {
+		t.Errorf("expected error to mention PR number, got: %v", err)
 	}
 }
 
