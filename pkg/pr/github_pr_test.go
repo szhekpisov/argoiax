@@ -54,16 +54,16 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	// CreatePullRequest — return PR
-	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", func(w http.ResponseWriter, _ *http.Request) {
-		pr := &github.PullRequest{
+	// CreatePullRequest / EditPullRequest — return PR
+	prHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(&github.PullRequest{
 			Number:  new(42),
 			HTMLURL: new("https://github.com/owner/repo/pull/42"),
-		}
-		w.WriteHeader(http.StatusCreated)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(pr)
-	})
+		})
+	}
+	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/pulls", prHandler)
+	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", prHandler)
 
 	// AddLabelsToIssue — accept labels
 	mux.HandleFunc("POST /api/v3/repos/{owner}/{repo}/issues/{issue}/labels", func(w http.ResponseWriter, _ *http.Request) {
@@ -80,16 +80,6 @@ func newTestGitHubServer(t *testing.T) *github.Client {
 		} else {
 			_ = json.NewEncoder(w).Encode([]*github.PullRequest{})
 		}
-	})
-
-	// EditPullRequest — accept PR update
-	mux.HandleFunc("PATCH /api/v3/repos/{owner}/{repo}/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
-		pr := &github.PullRequest{
-			Number:  new(42),
-			HTMLURL: new("https://github.com/owner/repo/pull/42"),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(pr)
 	})
 
 	// DeleteRef — accept branch deletion
