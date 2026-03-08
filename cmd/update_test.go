@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1032,8 +1033,11 @@ func newMockGitHubAPIWithBranches(t *testing.T, defaultBranch string, existingBr
 		case strings.HasPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/") && r.Method == http.MethodGet:
 			branch := strings.TrimPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/")
 			if branchAllowed(branch) {
-				sha := "abc123"
-				_, _ = fmt.Fprintf(w, `{"ref":"refs/heads/%s","object":{"sha":"%s","type":"commit"}}`, branch, sha)
+				ref := map[string]any{
+					"ref":    "refs/heads/" + branch,
+					"object": map[string]string{"sha": "abc123", "type": "commit"},
+				}
+				_ = json.NewEncoder(w).Encode(ref)
 			} else {
 				w.WriteHeader(http.StatusNotFound)
 				_, _ = fmt.Fprint(w, `{"message":"Not Found"}`)
