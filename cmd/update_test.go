@@ -1235,45 +1235,18 @@ func TestDefaultNewGitHubClient(t *testing.T) {
 	}
 }
 
-func TestResolveBaseBranch_ConfiguredBranchNotFound_FallsBack(t *testing.T) {
+func TestResolveBaseBranch_ConfiguredBranchNotFound(t *testing.T) {
 	// Repo default is "master", but config says "main" which doesn't exist.
 	client := newMockGitHubAPIWithBranches(t, "master", []string{"master"})
 	cfg := config.DefaultConfig()
 	cfg.Settings.BaseBranch = "main"
 
 	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.Settings.BaseBranch != "master" {
-		t.Errorf("expected fallback to master, got %s", cfg.Settings.BaseBranch)
-	}
-}
-
-func TestResolveBaseBranch_ConfiguredBranchNotFound_AutoDetectFails(t *testing.T) {
-	// Config says "main" which doesn't exist, and auto-detection also fails (API error).
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if strings.HasPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/") {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = fmt.Fprint(w, `{"message":"Not Found"}`)
-			return
-		}
-		// Repositories.Get fails
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(server.Close)
-
-	client := github.NewClient(nil)
-	baseURL, _ := url.Parse(server.URL + "/")
-	client.BaseURL = baseURL
-
-	cfg := config.DefaultConfig()
-	cfg.Settings.BaseBranch = "main"
-
-	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
 	if err == nil {
-		t.Fatal("expected error when both configured branch and auto-detection fail")
+		t.Fatal("expected error for non-existent configured baseBranch")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("expected error to mention branch does not exist, got: %v", err)
 	}
 }
 
