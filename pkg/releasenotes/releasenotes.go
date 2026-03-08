@@ -98,8 +98,7 @@ func (o *Orchestrator) FetchNotes(ctx context.Context, chartName, repoURL string
 
 	repo := MapChartToRepo(chartName, repoURL, chartCfg)
 	if repo.Owner == "" || repo.Repo == "" {
-		slog.Debug("could not map chart to GitHub repo", "chart", chartName, "repoURL", repoURL)
-		return nil
+		slog.Debug("could not map chart to GitHub repo, trying non-GitHub sources", "chart", chartName, "repoURL", repoURL)
 	}
 
 	for _, f := range o.fetchers {

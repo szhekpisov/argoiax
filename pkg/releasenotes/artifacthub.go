@@ -29,8 +29,10 @@ func (f *ArtifactHubFetcher) Name() string { return config.SourceArtifactHub }
 
 // Fetch retrieves release notes from ArtifactHub for the given versions.
 func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, versions []string) ([]Entry, string, error) {
-	// ArtifactHub uses repository-name/chart-name format.
-	// We try to derive a reasonable package path.
+	if repo.ChartName == "" {
+		return nil, "", nil
+	}
+
 	var entries []Entry
 	sourceURL := ""
 
@@ -62,10 +64,26 @@ type artifactHubChange struct {
 }
 
 func (f *ArtifactHubFetcher) fetchVersion(ctx context.Context, repo GitHubRepo, version string) (*Entry, string, error) {
-	// Try common ArtifactHub repo/package patterns
-	patterns := []string{
-		fmt.Sprintf("helm/%s/%s", repo.Repo, repo.Repo),
-		fmt.Sprintf("helm/%s/%s", repo.Owner, repo.Repo),
+	// Try common ArtifactHub repo/package patterns.
+	// ArtifactHub URLs are helm/{artifacthub-repo}/{chart-name}.
+	// The ArtifactHub repo name often matches the chart name or the GitHub owner.
+	seen := make(map[string]bool)
+	var patterns []string
+	addPattern := func(repoName, chartName string) {
+		p := fmt.Sprintf("helm/%s/%s", repoName, chartName)
+		if !seen[p] {
+			seen[p] = true
+			patterns = append(patterns, p)
+		}
+	}
+
+	chartName := repo.ChartName
+	addPattern(chartName, chartName)
+	if repo.Owner != "" {
+		addPattern(repo.Owner, chartName)
+	}
+	if repo.Repo != "" {
+		addPattern(repo.Repo, chartName)
 	}
 
 	for _, pkg := range patterns {

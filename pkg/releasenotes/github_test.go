@@ -147,6 +147,17 @@ func TestGitHubFetcher_Fetch_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestGitHubFetcher_Fetch_NoRepoMapping(t *testing.T) {
+	f := NewGitHubFetcher(nil)
+	entries, _, err := f.Fetch(context.Background(), GitHubRepo{ChartName: "datadog"}, []string{"1.0.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for empty Owner/Repo, got %d", len(entries))
+	}
+}
+
 func TestGitHubFetcher_Fetch_ConnectionError(t *testing.T) {
 	// Use a client pointing at an invalid URL to force a transport error
 	client := newRewriteClient("http://127.0.0.1:1", "https://api.github.com")
