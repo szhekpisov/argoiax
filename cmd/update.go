@@ -184,7 +184,7 @@ func resolveBaseBranch(ctx context.Context, ghClient *github.Client, owner, repo
 		return fmt.Errorf("checking default branch %q: %w", branch, err)
 	}
 	if !exists {
-		return fmt.Errorf("detected default branch %q is not accessible; the branch may not exist or the token may lack contents:read permission", branch)
+		return fmt.Errorf("default branch %q is not accessible; ensure the token has contents:read permission", branch)
 	}
 
 	cfg.Settings.BaseBranch = branch
