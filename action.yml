@@ -48,12 +48,40 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Detect install method
+      id: detect
+      shell: bash
+      run: |
+        if [[ "${{ github.action_ref }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          echo "method=download" >> "$GITHUB_OUTPUT"
+        else
+          echo "method=build" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download argoiax binary
+      if: steps.detect.outputs.method == 'download'
+      shell: bash
+      run: |
+        VERSION="${{ github.action_ref }}"
+        VERSION="${VERSION#v}"
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+        curl -sfL "https://github.com/szhekpisov/argoiax/releases/download/${{ github.action_ref }}/argoiax_${VERSION}_${OS}_${ARCH}.tar.gz" \
+          | tar xz -C /usr/local/bin argoiax
+        chmod +x /usr/local/bin/argoiax
+
     - name: Setup Go
+      if: steps.detect.outputs.method == 'build'
       uses: actions/setup-go@v5
       with:
         go-version-file: ${{ github.action_path }}/go.mod
 
-    - name: Build argoiax
+    - name: Build argoiax from source
+      if: steps.detect.outputs.method == 'build'
       shell: bash
       run: |
         cd "${{ github.action_path }}"
