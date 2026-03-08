@@ -1284,3 +1284,37 @@ func TestResolveBaseBranch_ConfiguredBranch_TransientError(t *testing.T) {
 		t.Errorf("expected error to mention checking configured baseBranch, got: %v", err)
 	}
 }
+
+func TestResolveBaseBranch_AutoDetect_NoContentsPermission(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == http.MethodGet:
+			_, _ = fmt.Fprint(w, `{"default_branch": "main"}`)
+		case strings.HasPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/"):
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = fmt.Fprint(w, `{"message":"Not Found"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, _ := url.Parse(server.URL + "/")
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+
+	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error when token lacks contents:read permission")
+	}
+	if !strings.Contains(err.Error(), "not accessible") || !strings.Contains(err.Error(), "contents:read") {
+		t.Errorf("expected error to mention inaccessibility and contents:read permission, got: %v", err)
+	}
+}
