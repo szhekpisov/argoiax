@@ -53,9 +53,10 @@ func (f *ArtifactHubFetcher) Fetch(ctx context.Context, repo GitHubRepo, version
 }
 
 type artifactHubPackage struct {
-	Version string              `json:"version"`
-	Changes []artifactHubChange `json:"changes"`
-	HTMLURL string              `json:"package_id"`
+	Version    string              `json:"version"`
+	Changes    []artifactHubChange `json:"changes"`
+	HTMLURL    string              `json:"package_id"`
+	ContentURL string              `json:"content_url"`
 }
 
 type artifactHubChange struct {
@@ -141,4 +142,41 @@ func (f *ArtifactHubFetcher) tryPackage(ctx context.Context, pkg, version string
 		Body:    body.String(),
 		URL:     pageURL,
 	}, pageURL, nil
+}
+
+// discoverRepoFromArtifactHub queries the ArtifactHub unversioned package endpoint
+// and extracts the GitHub owner/repo from the content_url field.
+func discoverRepoFromArtifactHub(ctx context.Context, client *http.Client, chartName string) GitHubRepo {
+	url := fmt.Sprintf("https://artifacthub.io/api/v1/packages/helm/%s/%s", chartName, chartName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return GitHubRepo{}
+	}
+
+	resp, err := client.Do(req) //nolint:bodyclose // closed via registry.DrainBody
+	if err != nil {
+		return GitHubRepo{}
+	}
+	defer registry.DrainBody(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return GitHubRepo{}
+	}
+
+	var ahPkg artifactHubPackage
+	if err := json.NewDecoder(resp.Body).Decode(&ahPkg); err != nil {
+		return GitHubRepo{}
+	}
+
+	if !strings.Contains(ahPkg.ContentURL, "github.com/") {
+		return GitHubRepo{}
+	}
+
+	owner, repo := registry.ExtractGitHubOwnerRepo(ahPkg.ContentURL)
+	if owner == "" || repo == "" {
+		return GitHubRepo{}
+	}
+
+	return GitHubRepo{Owner: owner, Repo: repo, ChartName: chartName}
 }

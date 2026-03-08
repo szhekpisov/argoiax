@@ -248,3 +248,59 @@ func TestArtifactHubFetcher_Fetch_EmptyChartName(t *testing.T) {
 		t.Errorf("expected 0 entries for empty ChartName, got %d", len(entries))
 	}
 }
+
+func TestDiscoverRepoFromArtifactHub_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/packages/helm/datadog/datadog" {
+			_ = json.NewEncoder(w).Encode(artifactHubPackage{
+				ContentURL: "https://github.com/DataDog/helm-charts/releases/download/datadog-3.181.1/datadog-3.181.1.tgz",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "datadog")
+
+	if got.Owner != "DataDog" {
+		t.Errorf("Owner = %q, want %q", got.Owner, "DataDog")
+	}
+	if got.Repo != "helm-charts" {
+		t.Errorf("Repo = %q, want %q", got.Repo, "helm-charts")
+	}
+	if got.ChartName != "datadog" {
+		t.Errorf("ChartName = %q, want %q", got.ChartName, "datadog")
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_NonGitHub(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(artifactHubPackage{
+			ContentURL: "https://charts.example.com/packages/mychart-1.0.0.tgz",
+		})
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "mychart")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for non-GitHub URL, got %+v", got)
+	}
+}
+
+func TestDiscoverRepoFromArtifactHub_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.NotFound(w, nil)
+	}))
+	defer server.Close()
+
+	client := newRewriteClient(server.URL, "https://artifacthub.io")
+	got := discoverRepoFromArtifactHub(context.Background(), client, "nonexistent")
+
+	if got.Owner != "" || got.Repo != "" {
+		t.Errorf("expected empty repo for 404, got %+v", got)
+	}
+}
