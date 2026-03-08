@@ -1328,6 +1328,40 @@ func TestResolveBaseBranch_AutoDetect_NoContentsPermission(t *testing.T) {
 	}
 }
 
+func TestResolveBaseBranch_AutoDetect_TransientError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/repos/testowner/testrepo" && r.Method == http.MethodGet:
+			_, _ = fmt.Fprint(w, `{"default_branch": "main"}`)
+		case strings.HasPrefix(r.URL.Path, "/repos/testowner/testrepo/git/ref/heads/"):
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = fmt.Fprint(w, `{"message":"Internal Server Error"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client := github.NewClient(nil)
+	baseURL, _ := url.Parse(server.URL + "/")
+	client.BaseURL = baseURL
+
+	cfg := config.DefaultConfig()
+
+	err := resolveBaseBranch(context.Background(), client, "testowner", "testrepo", cfg)
+	if err == nil {
+		t.Fatal("expected error on transient API failure")
+	}
+	if !strings.Contains(err.Error(), "checking default branch") {
+		t.Errorf("expected error to mention checking default branch, got: %v", err)
+	}
+}
+
 func TestCreatePerChartPRs_UpdatePRBodyError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, "app", "mychart", "1.0.0")
